@@ -3,6 +3,22 @@
 All notable changes to this project are documented here. Full notes for each release live in
 [`docs/release-notes/`](docs/release-notes/) and on the [Releases](https://github.com/TPandaGames/possum-operational-screensaver/releases) page.
 
+## [1.1.0] - 2026-11-13
+
+Weather sync. See the [full release notes](docs/release-notes/v1.1.0.md) or download
+[PocketPossum.scr](https://github.com/TPandaGames/possum-operational-screensaver/releases/download/v1.1.0/PocketPossum.scr).
+
+### Added
+
+- Optional **weather sync** (Open-Meteo, off by default): cloud cover, rain, snow, fog and thunderstorms with lightning,
+  a temperature/conditions line under the clock, and real sunrise/sunset plus season and hemisphere from the chosen location
+- City search in Settings, and a tabbed Settings dialog
+- Inno Setup installer script (`installer/PocketPossum.iss`), built by the GitHub Actions workflow
+
+### Fixed
+
+- The live preview in the Screen Saver dialog now uses your day/night and season settings instead of the defaults
+
 ## [1.0.0] - 2026-11-12
 
 First release. See the [full release notes](docs/release-notes/v1.0.0.md) or download
@@ -15,4 +31,5 @@ First release. See the [full release notes](docs/release-notes/v1.0.0.md) or dow
 - Burn-in protection: wandering clock, travelling moon, drifting scene
 - Barnaby, Bandit and the Maple family (Pip, Nibs and Dot), with random chases, standoffs, snack theft and more
 
+[1.1.0]: https://github.com/TPandaGames/possum-operational-screensaver/releases/tag/v1.1.0
 [1.0.0]: https://github.com/TPandaGames/possum-operational-screensaver/releases/tag/v1.0.0

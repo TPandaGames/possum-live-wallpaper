@@ -52,6 +52,12 @@
         html.ss, html.ss * { cursor: none !important; }
         html.ss #hud-controls, html.ss #settings-drawer, html.ss #launch-toast { display: none !important; }
 
+        #ss-weather {
+            margin-top: 6px; padding-left: 2px; font-size: 13px; font-weight: 500; letter-spacing: 0.04em;
+            color: rgba(203, 213, 225, 0.78); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8); transition: color 2s;
+        }
+        html.day #ss-weather { color: rgba(15, 23, 42, 0.78); text-shadow: none; }
+
         /* Daytime: dark text over the bright sky */
         #ss-time, #ss-ampm, #ss-date, #ss-activity { transition: color 2s, background-color 2s, border-color 2s; }
         html.day #ss-time { color: rgba(15, 23, 42, 0.85); }
@@ -74,6 +80,7 @@
         <div id="ss-date" class="text-xs sm:text-sm font-medium text-slate-300/65 tracking-widest uppercase mt-1 pl-0.5 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
             Thursday, November 12
         </div>
+        <div id="ss-weather" style="display:none"></div>
         <div id="ss-activity" class="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 backdrop-blur-md border border-white/10 text-[11px] text-indigo-200/75 transition-opacity duration-500">
             <span id="ss-activity-icon">🌙</span>
             <span id="ss-activity-text">Midnight porch patrol...</span>
@@ -216,12 +223,16 @@
             if (typeof config !== 'undefined' && config.theme === 'void') return 0;
             if (DN.mode === 'day') return 1;
             if (DN.mode === 'night') return 0;
+            const L = (wxActive() && WX.sunrise != null && WX.sunset != null) ? new Date(Date.now() + WX.utcOffset * 1000) : null;
             const now = new Date();
-            const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+            const h = L ? L.getUTCHours() + L.getUTCMinutes() / 60 + L.getUTCSeconds() / 3600
+                        : now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+            const dayStart = L ? WX.sunrise : DN.dayStart;
+            const nightStart = L ? WX.sunset : DN.nightStart;
             const T = 0.75;
             const smooth = (x, a, b) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-            const rise = smooth(h, DN.dayStart - T / 2, DN.dayStart + T / 2);
-            const set = smooth(h, DN.nightStart - T / 2, DN.nightStart + T / 2);
+            const rise = smooth(h, dayStart - T / 2, dayStart + T / 2);
+            const set = smooth(h, nightStart - T / 2, nightStart + T / 2);
             return Math.max(0, rise - set);
         }
 
@@ -241,12 +252,13 @@
         function isSouthern() {
             if (SEASON_CFG.hemi === 'south') return true;
             if (SEASON_CFG.hemi === 'north') return false;
+            if (WXCFG.on && WXCFG.hasLoc) return WXCFG.lat < 0; // a synced location knows its hemisphere
             return SOUTH_TZ.test(getTimeZone());
         }
 
         function getSeason() {
             if (SEASON_CFG.mode !== 'auto') return SEASON_CFG.mode;
-            let m = new Date().getMonth();               // local date in the system time zone
+            let m = wxActive() ? new Date(Date.now() + WX.utcOffset * 1000).getUTCMonth() : new Date().getMonth();               // local date in the system time zone
             if (isSouthern()) m = (m + 6) % 12;
             if (m >= 2 && m <= 4) return 'spring';
             if (m >= 5 && m <= 7) return 'summer';
@@ -264,6 +276,334 @@
         };
         let curSeasonName = 'summer';
         let curSeason = SEASONS.summer;
+
+        // ---- Weather sync (Open-Meteo; opt-in) --------------------------------------------
+        // ?wx=1&lat=..&lon=..&place=..&unit=auto|c|f      (dev: &wxtest=<WMO code>[&wxcloud=90&wxwind=22] fakes a reading)
+        const WXCFG = {
+            on: QS.get('wx') === '1',
+            lat: parseFloat(QS.get('lat')),
+            lon: parseFloat(QS.get('lon')),
+            place: QS.get('place') || '',
+            unit: QS.get('unit') || 'auto',
+        };
+        WXCFG.hasLoc = isFinite(WXCFG.lat) && isFinite(WXCFG.lon);
+
+        const WX = {
+            ok: false, updated: 0, code: 0, temp: 0, cloud: 0, wind: 0, isDay: true,
+            precip: null,            // 'rain' | 'snow' | null
+            intensity: 0, fog: false, thunder: false,
+            icon: '', label: '', sunrise: null, sunset: null, utcOffset: 0,
+        };
+
+        // WMO weather codes -> precipitation intensity (0..1)
+        const WX_RAIN = { 51: 0.25, 53: 0.35, 55: 0.5, 56: 0.3, 57: 0.5, 61: 0.4, 63: 0.65, 65: 0.9, 66: 0.5, 67: 0.8, 80: 0.5, 81: 0.75, 82: 1, 95: 0.85, 96: 0.95, 99: 1 };
+        const WX_SNOW = { 71: 0.3, 73: 0.55, 75: 0.9, 77: 0.3, 85: 0.5, 86: 0.85 };
+        const WX_LABEL = {
+            0: ['☀️', 'Clear'], 1: ['🌤️', 'Mostly clear'], 2: ['⛅', 'Partly cloudy'], 3: ['☁️', 'Overcast'],
+            45: ['🌫️', 'Fog'], 48: ['🌫️', 'Freezing fog'],
+            51: ['🌦️', 'Light drizzle'], 53: ['🌦️', 'Drizzle'], 55: ['🌧️', 'Heavy drizzle'],
+            56: ['🌧️', 'Freezing drizzle'], 57: ['🌧️', 'Freezing drizzle'],
+            61: ['🌧️', 'Light rain'], 63: ['🌧️', 'Rain'], 65: ['🌧️', 'Heavy rain'],
+            66: ['🌧️', 'Freezing rain'], 67: ['🌧️', 'Freezing rain'],
+            71: ['🌨️', 'Light snow'], 73: ['🌨️', 'Snow'], 75: ['❄️', 'Heavy snow'], 77: ['🌨️', 'Snow grains'],
+            80: ['🌦️', 'Light showers'], 81: ['🌧️', 'Showers'], 82: ['⛈️', 'Violent showers'],
+            85: ['🌨️', 'Snow showers'], 86: ['❄️', 'Heavy snow showers'],
+            95: ['⛈️', 'Thunderstorm'], 96: ['⛈️', 'Thunderstorm, hail'], 99: ['⛈️', 'Thunderstorm, heavy hail'],
+        };
+
+        // Only trust a reading for 3 h (covers offline spells); after that fall back to the normal scene
+        const wxActive = () => WXCFG.on && WX.ok && (Date.now() - WX.updated) < 3 * 3600 * 1000;
+        const wxWind = () => (wxActive() ? WX.wind : 0);
+        const wxSnowy = () => wxActive() && WX.precip === 'snow';
+        const wxRainy = () => wxActive() && WX.precip === 'rain';
+        const wxStarDim = (removed = 0.85) => (wxActive() ? 1 - removed * WX.cloud : 1);
+        const wxSunDim = () => (wxActive() ? 1 - 0.65 * WX.cloud : 1);
+        const wxFireMul = () => (!wxActive() ? 1 : (WX.precip || WX.fog) ? 0 : 1 - 0.5 * WX.cloud);
+        const wxFlyOk = () => !wxActive() || (!WX.precip && !WX.fog);
+
+        function wxGloom() {
+            if (!wxActive()) return 0;
+            let g = WX.cloud * 0.5;
+            if (WX.precip) g = Math.max(g, 0.35 + WX.intensity * 0.35);
+            if (WX.fog) g = Math.max(g, 0.5);
+            if (WX.thunder) g = Math.max(g, 0.85);
+            return Math.min(1, g);
+        }
+
+        // Falling-particle kind: real snow overrides the season; real rain keeps leaves/petals out of the air
+        function effectiveFall() {
+            if (wxActive()) {
+                if (WX.precip === 'snow') return 'snow';
+                if (WX.precip === 'rain') return null;
+            }
+            return curSeason.fall;
+        }
+
+        function applyWeather(j) {
+            const c = j.current || {};
+            WX.code = c.weather_code ?? 0;
+            WX.temp = c.temperature_2m ?? 0;
+            WX.cloud = Math.min(1, Math.max(0, (c.cloud_cover ?? 0) / 100));
+            WX.wind = c.wind_speed_10m ?? 0;
+            WX.isDay = !!c.is_day;
+            WX.utcOffset = j.utc_offset_seconds || 0;
+
+            const hm = (s) => {
+                const t = s ? String(s).split('T')[1] : null;
+                if (!t) return null;
+                const p = t.split(':');
+                return +p[0] + (+p[1]) / 60;
+            };
+            WX.sunrise = hm(j.daily && j.daily.sunrise && j.daily.sunrise[0]);
+            WX.sunset = hm(j.daily && j.daily.sunset && j.daily.sunset[0]);
+
+            const code = WX.code;
+            WX.precip = WX_SNOW[code] != null ? 'snow' : WX_RAIN[code] != null ? 'rain' : null;
+            WX.intensity = WX_SNOW[code] ?? WX_RAIN[code] ?? 0;
+            WX.fog = code === 45 || code === 48;
+            WX.thunder = code >= 95;
+            const lab = WX_LABEL[code] || ['🌡️', 'Unsettled'];
+            WX.icon = (!WX.isDay && code <= 1) ? '🌙' : lab[0];
+            WX.label = lab[1];
+            WX.ok = true;
+            WX.updated = Date.now();
+            showWeatherLine();
+        }
+
+        function fmtTemp(c) {
+            const f = WXCFG.unit === 'f' || (WXCFG.unit === 'auto' && /-(US|BS|BZ|KY|LR|PW)\b/i.test(navigator.language || ''));
+            return f ? `${Math.round(c * 9 / 5 + 32)}°F` : `${Math.round(c)}°C`;
+        }
+
+        function showWeatherLine() {
+            const el = document.getElementById('ss-weather');
+            if (!el) return;
+            if (!wxActive()) { el.style.display = 'none'; return; }
+            const icon = (WX.code <= 1 && getDaylight() < 0.5) ? '🌙' : WX.icon; // clear night = moon, agreeing with the scene
+            const text = `${icon} ${fmtTemp(WX.temp)} · ${WX.label}` + (WXCFG.place ? ` · ${WXCFG.place}` : '');
+            if (el.textContent !== text) el.textContent = text;
+            el.style.display = 'block';
+        }
+
+        async function refreshWeather() {
+            if (!WXCFG.on || !WXCFG.hasLoc) return;
+            const url = 'https://api.open-meteo.com/v1/forecast'
+                + `?latitude=${WXCFG.lat}&longitude=${WXCFG.lon}`
+                + '&current=temperature_2m,weather_code,cloud_cover,wind_speed_10m,is_day'
+                + '&daily=sunrise,sunset&timezone=auto&forecast_days=1&wind_speed_unit=kmh';
+            try {
+                const r = await fetch(url, { cache: 'no-store' });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const j = await r.json();
+                applyWeather(j);
+                try { localStorage.setItem('wxCache', JSON.stringify({ t: Date.now(), lat: WXCFG.lat, lon: WXCFG.lon, j })); } catch (e) { /* storage unavailable */ }
+                hostLog(`weather: ${WX.label}, ${WX.temp} C, cloud ${Math.round(WX.cloud * 100)}%, wind ${WX.wind} km/h`);
+            } catch (e) {
+                hostLog('weather fetch failed: ' + e.message);
+            }
+        }
+
+        function initWeather() {
+            if (!WXCFG.on) return;
+            const test = QS.get('wxtest');
+            if (test !== null) {
+                applyWeather({
+                    utc_offset_seconds: -new Date().getTimezoneOffset() * 60,
+                    current: {
+                        weather_code: +test, temperature_2m: 8, is_day: 1,
+                        cloud_cover: +(QS.get('wxcloud') ?? 90), wind_speed_10m: +(QS.get('wxwind') ?? 22),
+                    },
+                    daily: { sunrise: ['2000-01-01T07:00'], sunset: ['2000-01-01T18:30'] },
+                });
+                return;
+            }
+            if (!WXCFG.hasLoc) return;
+            try { // show the last reading straight away if it is recent and for this location
+                const c = JSON.parse(localStorage.getItem('wxCache') || 'null');
+                if (c && c.lat === WXCFG.lat && c.lon === WXCFG.lon && Date.now() - c.t < 3 * 3600 * 1000) {
+                    applyWeather(c.j);
+                    WX.updated = c.t;
+                }
+            } catch (e) { /* ignore a bad cache */ }
+            refreshWeather();
+            setInterval(refreshWeather, 15 * 60 * 1000);
+        }
+
+        // ---- Weather visuals ----------------------------------------------------------------
+        function mixHex(a, b, t) {
+            const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+            const ch = (s) => { const x = (pa >> s) & 255, y = (pb >> s) & 255; return Math.round(x + (y - x) * t).toString(16).padStart(2, '0'); };
+            return '#' + ch(16) + ch(8) + ch(0);
+        }
+
+        // Clouds follow the real cloud cover (count, colour, wind speed), day and night
+        function drawWeatherClouds(D) {
+            if (!wxActive() || config.theme === 'void') return;
+            const n = Math.min(clouds.length, Math.ceil(WX.cloud * clouds.length));
+            const gloom = wxGloom();
+            const synth = config.theme === 'synth';
+            const dayHex = mixHex(synth ? '#ffebf5' : '#ffffff', '#7e8898', Math.min(1, gloom * 1.1));
+            const nightHex = mixHex('#46527c', '#1a2038', gloom);
+            ctx.save();
+            ctx.fillStyle = mix(nightHex, dayHex, D);
+            ctx.globalAlpha = 0.55 + 0.35 * D;
+            for (let i = 0; i < clouds.length; i++) {
+                const c = clouds[i];
+                c.x += c.v * (1 + wxWind() / 25);
+                if (c.x > width + 160) c.x = -160;
+                if (i >= n) continue;
+                const s = c.s * (1 + WX.cloud * 0.35);
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, 26 * s, 0, TAU);
+                ctx.arc(c.x + 30 * s, c.y - 12 * s, 32 * s, 0, TAU);
+                ctx.arc(c.x + 66 * s, c.y - 2 * s, 27 * s, 0, TAU);
+                ctx.arc(c.x + 34 * s, c.y + 8 * s, 26 * s, 0, TAU);
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+
+        let rain = [];
+        let rainKey = '';
+        const splashes = [];
+        let flash = 0, echo = 0, bolt = null, nextStrike = 0;
+
+        function initRain(key) {
+            rainKey = key;
+            rain = [];
+            const n = Math.round(WX.intensity * Math.min(420, width / 4.5));
+            for (let i = 0; i < n; i++) {
+                rain.push({ x: Math.random() * (width + 200) - 100, y: Math.random() * railY, len: 10 + Math.random() * 14, sp: 11 + Math.random() * 7 });
+            }
+        }
+
+        function strike() {
+            flash = 1; echo = 8;
+            const pts = [];
+            let px = width * (0.15 + Math.random() * 0.7), py = 0;
+            pts.push([px, py]);
+            while (py < railY - 30) { py += 25 + Math.random() * 35; px += (Math.random() - 0.5) * 60; pts.push([px, py]); }
+            bolt = { pts, t: 1 };
+            if (config.soundEnabled) setTimeout(playThunder, 300 + Math.random() * 900);
+
+            // Possums are easily spooked
+            const cand = [barnaby, bandit, mama].filter((p) => p.present && !['PLAY_DEAD', 'ENTER', 'LEAVE'].includes(p.state));
+            if (cand.length && Math.random() < 0.5) {
+                const p = cand[Math.floor(Math.random() * cand.length)];
+                as(p, triggerPlayDead);
+                setActivityBadge('⚡', `${p.name} got startled by the thunder!`, true);
+            }
+        }
+
+        function playThunder() {
+            if (!config.soundEnabled) return;
+            initAudio();
+            const now = audioCtx.currentTime;
+            const len = Math.floor(audioCtx.sampleRate * 1.6);
+            const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+            const src = audioCtx.createBufferSource();
+            src.buffer = buf;
+            const lp = audioCtx.createBiquadFilter();
+            lp.type = 'lowpass'; lp.frequency.value = 180;
+            const g = audioCtx.createGain();
+            g.gain.setValueAtTime(0.35, now);
+            g.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+            src.connect(lp); lp.connect(g); g.connect(audioCtx.destination);
+            src.start(now);
+        }
+
+        // Rain, fog and lightning bolts (drawn behind the possums)
+        function updateAndDrawWeather(time, D) {
+            if (!wxActive() || config.theme === 'void') { nextStrike = 0; return; }
+
+            // Fog banks (also a faint mist when it is very overcast)
+            const fogA = WX.fog ? 0.55 : Math.max(0, WX.cloud - 0.75) * 0.5;
+            if (fogA > 0.01) {
+                const tint = D > 0.5 ? '225,230,238' : '120,135,170';
+                ctx.save();
+                for (let i = 0; i < 8; i++) {
+                    const x = ((time * 0.12 * (1 + i * 0.3) + i * width / 5) % (width + 900)) - 450;
+                    const y = railY - 30 - i * 60;
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.scale(1, 0.34);
+                    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 520);
+                    g.addColorStop(0, `rgba(${tint}, ${Math.min(0.9, fogA * 1.15).toFixed(3)})`);
+                    g.addColorStop(1, `rgba(${tint}, 0)`);
+                    ctx.fillStyle = g;
+                    ctx.beginPath(); ctx.arc(0, 0, 520, 0, TAU); ctx.fill();
+                    ctx.restore();
+                }
+                ctx.restore();
+            }
+
+            // Rain, slanted by the wind
+            if (wxRainy()) {
+                const key = Math.round(WX.intensity * 100) + '|' + width;
+                if (rainKey !== key) initRain(key);
+                const slant = Math.min(9, wxWind() * 0.28);
+                ctx.save();
+                ctx.lineWidth = 1.2;
+                ctx.strokeStyle = D > 0.5 ? 'rgba(80, 100, 140, 0.55)' : 'rgba(170, 190, 230, 0.5)';
+                ctx.beginPath();
+                for (const p of rain) {
+                    ctx.moveTo(p.x, p.y);
+                    ctx.lineTo(p.x + slant * 0.6, p.y + p.len);
+                    p.y += p.sp; p.x += slant * 0.5;
+                    if (p.y > railY) {
+                        if (splashes.length < 70 && Math.random() < 0.25) splashes.push({ x: p.x, t: 0 });
+                        p.y = -20; p.x = Math.random() * (width + 200) - 100;
+                    }
+                }
+                ctx.stroke();
+                for (let i = splashes.length - 1; i >= 0; i--) {
+                    const s = splashes[i];
+                    s.t++;
+                    ctx.globalAlpha = Math.max(0, 0.5 - s.t * 0.06);
+                    ctx.beginPath();
+                    ctx.ellipse(s.x, railY, 2 + s.t * 1.2, 1 + s.t * 0.3, 0, 0, TAU);
+                    ctx.stroke();
+                    if (s.t > 8) splashes.splice(i, 1);
+                }
+                ctx.restore();
+            }
+
+            // Thunderstorm: a bolt every 7-25 s
+            if (WX.thunder) {
+                if (!nextStrike) nextStrike = time + 240 + Math.random() * 360;
+                if (time >= nextStrike) { strike(); nextStrike = time + 420 + Math.random() * 1100; }
+            } else {
+                nextStrike = 0;
+            }
+            if (bolt && bolt.t > 0) {
+                ctx.save();
+                ctx.globalAlpha = bolt.t;
+                ctx.strokeStyle = '#f4f7ff';
+                ctx.lineWidth = 2.6;
+                ctx.lineJoin = 'round';
+                ctx.shadowColor = '#9db8ff';
+                ctx.shadowBlur = 16;
+                ctx.beginPath();
+                bolt.pts.forEach((pt, i) => (i ? ctx.lineTo(pt[0], pt[1]) : ctx.moveTo(pt[0], pt[1])));
+                ctx.stroke();
+                ctx.restore();
+                bolt.t -= 0.07;
+            }
+        }
+
+        // Full-screen lightning flash (drawn last, with a quick echo flicker)
+        function drawWeatherOverlay() {
+            if (echo > 0 && --echo === 0) flash = 0.8;
+            if (flash > 0.02) {
+                ctx.save();
+                ctx.fillStyle = `rgba(235, 242, 255, ${(flash * 0.5).toFixed(3)})`;
+                ctx.fillRect(0, 0, width, height);
+                ctx.restore();
+                flash *= 0.86;
+            }
+        }
 
         // Blend two #rrggbb colours
         function mix(a, b, t) {
@@ -393,6 +733,7 @@
             });
             document.getElementById('ss-date').textContent = dateStr;
 
+            showWeatherLine();
             if (IS_SS) wanderClock();
         }
 
@@ -579,8 +920,8 @@
 
         function initFalling() {
             falling = [];
-            fallingFor = curSeasonName;
-            const kind = curSeason.fall;
+            fallingFor = curSeasonName + '|' + effectiveFall();
+            const kind = effectiveFall();
             if (!kind) return;
             const n = kind === 'snow' ? Math.min(220, Math.max(60, Math.floor(width / 9))) : kind === 'leaf' ? 26 : 40;
             for (let i = 0; i < n; i++) {
@@ -600,8 +941,8 @@
 
         function updateAndDrawFalling(time, D) {
             if (config.theme === 'void') return;
-            if (fallingFor !== curSeasonName) initFalling();
-            const kind = curSeason.fall;
+            if (fallingFor !== curSeasonName + '|' + effectiveFall()) initFalling();
+            const kind = effectiveFall();
             if (!kind) return;
 
             ctx.save();
@@ -609,7 +950,7 @@
             ctx.textBaseline = 'middle';
             for (const p of falling) {
                 p.y += p.vy;
-                p.x += Math.sin(time * 0.02 * p.sway + p.phase) * 0.6 + (kind === 'snow' ? 0.1 : 0.35);
+                p.x += Math.sin(time * 0.02 * p.sway + p.phase) * 0.6 + ((kind === 'snow' ? 0.1 : 0.35) + wxWind() * 0.04);
                 p.rot += p.spin;
                 if (p.y > railY - 4) { p.y = -12; p.x = Math.random() * width; }
                 if (p.x > width + 20) p.x = -20;
@@ -718,6 +1059,15 @@
                 ctx.fillRect(0, 0, width, height);
             }
 
+            // Weather gloom: a grey (day) or darker (night) veil over the sky
+            const gloomA = wxGloom();
+            if (config.theme !== 'void' && gloomA > 0.01) {
+                ctx.fillStyle = mix('#05070f', '#6f7b8c', D);
+                ctx.globalAlpha = gloomA * (0.28 + 0.3 * D);
+                ctx.fillRect(0, 0, width, height);
+                ctx.globalAlpha = 1;
+            }
+
             // Sunrise / sunset glow along the horizon, strongest mid-transition
             const twilight = 1 - Math.abs(2 * D - 1);
             if (config.theme !== 'void' && twilight > 0.02) {
@@ -731,7 +1081,7 @@
             // 2. Twinkling Stars (shown in Porch & Synth themes)
             if (config.theme !== 'void' && D < 0.98) {
                 for (const s of stars) {
-                    const alpha = (0.25 + 0.75 * (0.5 + 0.5 * Math.sin(time * s.speed + s.phase))) * (1 - D);
+                    const alpha = (0.25 + 0.75 * (0.5 + 0.5 * Math.sin(time * s.speed + s.phase))) * (1 - D) * wxStarDim();
                     ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
                     ctx.beginPath();
                     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
@@ -749,7 +1099,7 @@
                 }
                 const synth = config.theme === 'synth';
                 ctx.save();
-                ctx.globalAlpha = D;
+                ctx.globalAlpha = D * wxSunDim();
                 const sunHalo = ctx.createRadialGradient(sx, sy, 10, sx, sy, 190);
                 sunHalo.addColorStop(0, synth ? 'rgba(255, 140, 120, 0.55)' : 'rgba(255, 236, 150, 0.6)');
                 sunHalo.addColorStop(1, 'rgba(255, 236, 150, 0)');
@@ -760,7 +1110,7 @@
                 ctx.fillStyle = synth ? '#ffd0a8' : '#fef9c3';
                 ctx.beginPath(); ctx.arc(sx - 6, sy - 6, 22, 0, TAU); ctx.fill();
 
-                for (const c of clouds) {
+                for (const c of (wxActive() ? [] : clouds)) {
                     c.x += c.v;
                     if (c.x > width + 160) c.x = -160;
                     ctx.fillStyle = synth ? 'rgba(255, 235, 245, 0.85)' : curSeason.cloud;
@@ -785,7 +1135,7 @@
                     moonY = Math.max(105, height * 0.17) + height * 0.05 * Math.cos(TAU * m / 3000);
                 }
                 ctx.save();
-                ctx.globalAlpha = 1 - D;
+                ctx.globalAlpha = (1 - D) * wxStarDim(0.7);
                 // Soft lunar halo
                 const halo = ctx.createRadialGradient(moonX, moonY, 8, moonX, moonY, 110);
                 halo.addColorStop(0, config.theme === 'synth' ? 'rgba(244, 114, 182, 0.25)' : 'rgba(254, 249, 195, 0.22)');
@@ -810,6 +1160,8 @@
                 ctx.restore();
             }
 
+            drawWeatherClouds(D);
+
             // 4. Distant Pine Tree Silhouettes (Porch & Synth)
             if (config.theme === 'porch' || config.theme === 'synth') {
                 ctx.fillStyle = config.theme === 'synth' ? mix('#16092b', '#8a4a86', D) : mix('#0a0f22', curSeason.tree, D);
@@ -831,7 +1183,7 @@
                         ctx.closePath();
                         ctx.fill();
 
-                        if (curSeason.snow) {
+                        if (curSeason.snow || wxSnowy()) {
                             // Snow settled on the top of each pine tier
                             const k = 0.42;
                             ctx.save();
@@ -900,7 +1252,7 @@
                 ctx.fillStyle = config.theme === 'synth' ? 'rgba(232,121,249,0.45)' : 'rgba(226,232,240,0.22)';
                 ctx.fillRect(0, railY, width, 2);
 
-                if (curSeason.snow) {
+                if (curSeason.snow || wxSnowy()) {
                     ctx.fillStyle = mix('#8a98b8', '#ffffff', D);
                     ctx.fillRect(0, railY - 3, width, 5);
                 }
@@ -981,12 +1333,12 @@
                 if (f.y < wireY + 10) f.vy = Math.abs(f.vy);
                 if (f.y > railY - 18) f.vy = -Math.abs(f.vy);
 
-                const glow = (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 0.06 + f.phase))) * (1 - Dff) * curSeason.fire;
+                const glow = (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 0.06 + f.phase))) * (1 - Dff) * curSeason.fire * wxFireMul();
                 const color = config.theme === 'synth' ? '244, 114, 182' : '190, 242, 100';
 
                 // By day the fireflies become butterflies and bees
                 const flyers = curSeason.fly;
-                if (Dff > 0.02 && flyers.length) {
+                if (Dff > 0.02 && flyers.length && wxFlyOk()) {
                     ctx.save();
                     ctx.globalAlpha = Dff;
                     ctx.font = '18px sans-serif';
@@ -2217,10 +2569,12 @@
             drawBackgroundScene(frameTick);
             updateAndDrawFireflies(frameTick);
             updateAndDrawFalling(frameTick, getDaylight());
+            updateAndDrawWeather(frameTick, getDaylight());
             updateAndDrawSnacks();
             updatePossums();
             drawPossums();
             updateAndDrawParticles();
+            drawWeatherOverlay();
 
             requestAnimationFrame(animateScreensaver);
         }
@@ -2236,6 +2590,7 @@
             if (qs.get('clock') === '0') toggleClockOverlay();
             if (qs.get('sound') === '1') toggleSound();
             if (qs.get('joey') === '1') toggleJoey();
+            initWeather();
 
             // Fade out the initial launch hint toast after 4.5 seconds
             setTimeout(() => {

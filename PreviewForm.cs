@@ -27,8 +27,9 @@ sealed class PreviewForm : Form
         NativeMethods.SetWindowLongPtr(Handle, NativeMethods.GWL_STYLE, new IntPtr(style));
         NativeMethods.SetParent(Handle, parent);
 
-        // Preview is a thumbnail: never play sound.
-        var s = new Settings { Theme = settings.Theme, ShowClock = settings.ShowClock, Joey = settings.Joey, Sound = false };
+        // Preview is a thumbnail: use the real settings (scene, day/night, season, weather) but never play sound.
+        var s = settings.Clone();
+        s.Sound = false;
         Load += async (_, _) => await WebHost.InitAsync(_view, SharedEnv.Create(), s);
 
         _alive.Tick += (_, _) => { if (!NativeMethods.IsWindow(_parent)) Close(); };

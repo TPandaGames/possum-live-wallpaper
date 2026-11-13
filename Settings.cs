@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 namespace PocketPossum;
@@ -16,6 +17,15 @@ public sealed class Settings
     public bool AutoStart { get; set; } = true;    // tray app launches the saver when idle
     public int IdleMinutes { get; set; } = 10;      // minutes of no keyboard/mouse activity
 
+    // Weather sync (opt-in): the page fetches current conditions for this location from open-meteo.com
+    public bool WeatherSync { get; set; } = false;
+    public double? WeatherLat { get; set; }
+    public double? WeatherLon { get; set; }
+    public string WeatherPlace { get; set; } = "";  // display name, e.g. "Dublin, Ireland"
+    public string TempUnit { get; set; } = "auto";  // auto (system region) | c | f
+
+    public bool HasWeatherLocation => WeatherLat.HasValue && WeatherLon.HasValue;
+
     static string Dir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PocketPossum");
     static string FilePath => Path.Combine(Dir, "settings.json");
     public static string WebViewDataDir => Path.Combine(Dir, "WebView2");
@@ -32,6 +42,23 @@ public sealed class Settings
         File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
     }
 
-    public string ToQuery() =>
-        $"ss=1&theme={Theme}&clock={(ShowClock ? 1 : 0)}&sound={(Sound ? 1 : 0)}&joey={(Joey ? 1 : 0)}&dn={DayNight}&ds={DayStartHour}&ne={NightStartHour}&season={Season}&hemi={Hemisphere}";
+    public Settings Clone() => (Settings)MemberwiseClone();
+
+    public string ToQuery()
+    {
+        var q = $"ss=1&theme={Theme}&clock={(ShowClock ? 1 : 0)}&sound={(Sound ? 1 : 0)}&joey={(Joey ? 1 : 0)}" +
+                $"&dn={DayNight}&ds={DayStartHour}&ne={NightStartHour}&season={Season}&hemi={Hemisphere}";
+
+        if (WeatherSync && HasWeatherLocation)
+        {
+            q += $"&wx=1&lat={WeatherLat!.Value.ToString("R", CultureInfo.InvariantCulture)}" +
+                 $"&lon={WeatherLon!.Value.ToString("R", CultureInfo.InvariantCulture)}" +
+                 $"&place={Uri.EscapeDataString(WeatherPlace)}&unit={TempUnit}";
+        }
+
+        // Dev hook: extra query parameters from the environment (e.g. "wxtest=95" to fake a thunderstorm)
+        var extra = Environment.GetEnvironmentVariable("POSSUM_URL_EXTRA");
+        if (!string.IsNullOrWhiteSpace(extra)) q += "&" + extra.TrimStart('&');
+        return q;
+    }
 }

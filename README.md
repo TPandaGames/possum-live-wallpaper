@@ -4,7 +4,7 @@ A Windows screensaver starring **Barnaby the possum**, a moonlit porch, and a ca
 (Inside the app and its files it goes by the name *Pocket Possum*.)
 
 **[Download PocketPossum.scr](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest/download/PocketPossum.scr)**
-(v1.0.0) · [Zip, if your browser blocks `.scr` files](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest/download/PocketPossum-win-x64.zip)
+(v1.1.0) · [Zip, if your browser blocks `.scr` files](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest/download/PocketPossum-win-x64.zip)
 · [Release notes](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest)
 It's a real `.scr` file: install it from Windows' Screen Saver Settings, or run it in the tray and let it start by itself
 after a few idle minutes.
@@ -17,8 +17,15 @@ after a few idle minutes.
 |---|---|---|
 | ![Spring](docs/screenshots/spring.png) | ![Autumn](docs/screenshots/autumn.png) | ![Winter](docs/screenshots/winter.png) |
 
+| Rain | Thunderstorm | Fog |
+|---|---|---|
+| ![Rain](docs/screenshots/rain.png) | ![Thunderstorm at night](docs/screenshots/storm.png) | ![Fog](docs/screenshots/fog.png) |
+
 ## Features
 
+- **Weather sync (optional).** Pick your city and the scene follows the real weather: cloud cover, rain, snow, fog and
+  thunderstorms (with lightning that spooks the possums), plus the temperature under the clock. It also uses your
+  location's real sunrise and sunset for day and night. Off by default, see [Weather sync](#weather-sync).
 - **Real screensaver.** Runs on every monitor, exits on any mouse or keyboard input, live preview in the Windows dialog.
 - **Day and night from your system clock**, with a smooth sunrise/sunset blend. You choose when day and night start.
 - **Four seasons** from today's date in your time zone (hemisphere inferred from the zone, or set it yourself):
@@ -62,10 +69,33 @@ Open them from **Settings...** in the Screen Saver dialog, or from the tray icon
 | Baby joey passenger | Barnaby carries a joey, which Bandit may try to swipe |
 | Day / night | Automatic by system time, always day, or always night, plus the hours day and night start |
 | Season | Automatic by date, or pin one. Hemisphere: automatic from time zone, or set it |
+| Weather sync | Follow the real weather for a location you search for (see [Weather sync](#weather-sync)) |
+| Temperature | Celsius, Fahrenheit, or automatic by system region |
 | Start when idle for N minutes | The tray app launches the screensaver after N idle minutes |
 | Run in the tray when Windows starts | Adds a per-user startup entry (no admin needed) |
 
 Settings are stored in `%LOCALAPPDATA%\PocketPossum\settings.json`.
+
+## Weather sync
+
+Open **Settings... > Weather**, tick *Sync the scene with the real weather*, search for your city or town, pick it
+from the list and press OK. Then:
+
+- **Clouds** follow the real cloud cover (how many, how dark, how fast the wind moves them), by day and by night.
+  The sun, moon and stars dim behind them.
+- **Rain** falls slanted by the wind, **snow** falls and settles on the trees and rail (in any season), **fog** rolls in,
+  and **thunderstorms** add lightning (and thunder if sounds are on). The possums get startled by the bolts.
+- Fireflies and butterflies stay home when it is wet or foggy, and fallen leaves and petals stay down in the rain.
+- A small line under the clock shows the conditions and temperature, for example `6°C · Clear · Dublin`.
+- **Day and night** use your location's **real sunrise and sunset**, and the **season and hemisphere** come from the
+  location. Your hours in *Day / night* are used only when weather sync is off.
+- If the connection drops, the last reading is used for up to 3 hours, then the normal scene returns.
+
+**Privacy.** Weather sync is off by default. When it is on, the screensaver sends the coordinates of the location you
+chose, over HTTPS, to [Open-Meteo](https://open-meteo.com/) about every 15 minutes (and the city search sends the text
+you type to its geocoding service). Nothing else is sent and no account or API key is involved.
+Weather data by [Open-Meteo.com](https://open-meteo.com/) under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Command line
 
@@ -91,6 +121,21 @@ dotnet publish -c Release -o dist
 This produces `dist\PocketPossum.scr` (a renamed `.exe`). A GitHub Actions workflow in `.github/workflows/build.yml`
 builds it on every push and uploads it as an artifact.
 
+## Build the installer
+
+The setup wizard is an [Inno Setup](https://jrsoftware.org/isinfo.php) script in
+[`installer/PocketPossum.iss`](installer/PocketPossum.iss). With Inno Setup 6 installed:
+
+```powershell
+dotnet publish -c Release -o dist
+iscc installer\PocketPossum.iss
+```
+
+This writes `installer\Output\PocketPossum-Setup-<version>.exe`. The installer asks for admin rights (the `.scr` is
+copied to `System32` so it appears in the Screen Saver list), installs the tray app and Start menu shortcuts, and
+downloads the .NET 10 Desktop Runtime and WebView2 Runtime from Microsoft if they are missing. It supports
+`/VERYSILENT` for unattended installs and removes everything cleanly on uninstall.
+
 ## Editing the animation
 
 The whole scene is plain HTML, CSS and canvas JavaScript in [`wwwroot/index.html`](wwwroot/index.html). It is embedded in
@@ -107,7 +152,10 @@ the executable at build time and served to WebView2 from a virtual host, so ther
   ```
 
 - Page URL parameters (set by the host from your settings): `ss`, `theme`, `clock`, `sound`, `joey`,
-  `dn` (`auto`/`day`/`night`), `ds`/`ne` (hour day/night starts), `season`, `hemi`.
+  `dn` (`auto`/`day`/`night`), `ds`/`ne` (hour day/night starts), `season`, `hemi`, and for weather
+  `wx=1`, `lat`, `lon`, `place`, `unit` (`auto`/`c`/`f`). To fake a reading while developing, add
+  `wxtest=<WMO code>` (for example `95` for a thunderstorm) with optional `wxcloud=<0-100>` and `wxwind=<km/h>`.
+  The host also appends the environment variable `POSSUM_URL_EXTRA` to the page URL, which is handy with `/x`.
 
 ## Project layout
 

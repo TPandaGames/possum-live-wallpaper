@@ -10,7 +10,7 @@
     <RootNamespace>PocketPossum</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>Pocket Possum Screensaver</Product>
     <!-- Single file: web assets are embedded, the WebView2 native loader self-extracts -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
