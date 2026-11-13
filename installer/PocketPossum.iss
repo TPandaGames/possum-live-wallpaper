@@ -55,7 +55,7 @@ Name: "trayautostart"; Description: "Run in the system tray when Windows starts 
 ; The tray app / settings (also used by the tray to launch the screensaver)
 Source: "..\dist\PocketPossum.exe"; DestDir: "{app}"; Flags: ignoreversion
 ; The screensaver itself: a renamed copy of the same program, in System32 so Windows lists it
-Source: "..\dist\PocketPossum.scr"; DestDir: "{sys}"; Flags: ignoreversion replacesameversion
+Source: "..\dist\PocketPossum.scr"; DestDir: "{sys}"; Flags: ignoreversion
 Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
