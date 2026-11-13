@@ -1,0 +1,11 @@
+{
+  "name": "pocket-possum-css",
+  "private": true,
+  "description": "Rebuilds wwwroot/app.css (compiled Tailwind) for the Pocket Possum screensaver",
+  "scripts": {
+    "css": "tailwindcss -c tailwind.config.js -i input.css -o ../../wwwroot/app.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+dist/
+
+# Node (tools/tailwind)
+node_modules/
+
+# IDE / OS
+.vs/
+.vscode/
+*.user
+*.suo
+Thumbs.db
+.DS_Store

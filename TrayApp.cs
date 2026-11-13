@@ -1,0 +1,87 @@
+using System.Diagnostics;
+
+namespace PocketPossum;
+
+/// <summary>Background tray app: launches the screensaver after N idle minutes (the in-app timing setting).</summary>
+sealed class TrayApp : ApplicationContext
+{
+    readonly Settings _settings;
+    readonly NotifyIcon _icon;
+    readonly System.Windows.Forms.Timer _timer = new() { Interval = 1000 };
+    Process? _saver;
+    DateTime _lastLaunch = DateTime.MinValue;
+    ConfigForm? _config;
+
+    public TrayApp(Settings settings)
+    {
+        _settings = settings;
+
+        var menu = new ContextMenuStrip();
+        menu.Items.Add("Start screensaver now", null, (_, _) => Launch());
+        menu.Items.Add("Settings…", null, (_, _) => ShowSettings());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Exit", null, (_, _) => ExitThread());
+
+        _icon = new NotifyIcon
+        {
+            Icon = SystemIcons.Application,
+            Visible = true,
+            ContextMenuStrip = menu,
+        };
+        _icon.DoubleClick += (_, _) => ShowSettings();
+        UpdateTooltip();
+
+        _timer.Tick += (_, _) => Tick();
+        _timer.Start();
+        Log.Write("tray started");
+    }
+
+    void UpdateTooltip()
+    {
+        var t = _settings.AutoStart
+            ? $"Pocket Possum – starts after {_settings.IdleMinutes} min idle"
+            : "Pocket Possum – auto-start off";
+        _icon.Text = t.Length > 63 ? t[..63] : t;
+    }
+
+    void Tick()
+    {
+        if (!_settings.AutoStart) return;
+        if (_saver is { HasExited: false }) return;
+        if ((DateTime.UtcNow - _lastLaunch).TotalSeconds < 5) return; // avoid relaunch loops
+
+        var limitMs = (uint)Math.Max(1, _settings.IdleMinutes) * 60_000u;
+        if (NativeMethods.IdleMilliseconds() >= limitMs) Launch();
+    }
+
+    void Launch()
+    {
+        if (_saver is { HasExited: false }) return;
+        _lastLaunch = DateTime.UtcNow;
+        try
+        {
+            _saver = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "/s") { UseShellExecute = false });
+            Log.Write($"tray launched saver (idle limit {_settings.IdleMinutes} min)");
+        }
+        catch (Exception ex) { Log.Write("launch failed: " + ex); }
+    }
+
+    void ShowSettings()
+    {
+        if (_config is { IsDisposed: false }) { _config.Activate(); return; }
+        _config = new ConfigForm(_settings);
+        _config.FormClosed += (_, _) => UpdateTooltip();
+        _config.Show();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _timer.Stop();
+            _icon.Visible = false;
+            _icon.Dispose();
+        }
+        base.Dispose(disposing);
+    }
+}

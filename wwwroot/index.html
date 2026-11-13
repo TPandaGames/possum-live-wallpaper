@@ -1,0 +1,2250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pocket Possum — Desktop Screensaver</title>
+    <link rel="stylesheet" href="app.css">
+    <link rel="stylesheet" href="fonts.css">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Fredoka', sans-serif;
+            background-color: #070913;
+        }
+
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Auto-fading HUD transitions */
+        .hud-fade {
+            transition: opacity 0.65s cubic-bezier(0.22, 1, 0.36, 1), transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .hud-hidden {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transform: translateY(-6px);
+        }
+
+        /* Custom subtle scrollbar for drawer on small viewports */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    
+        /* Real screensaver mode (?ss=1): no UI chrome, no cursor */
+        html.ss, html.ss * { cursor: none !important; }
+        html.ss #hud-controls, html.ss #settings-drawer, html.ss #launch-toast { display: none !important; }
+
+        /* Daytime: dark text over the bright sky */
+        #ss-time, #ss-ampm, #ss-date, #ss-activity { transition: color 2s, background-color 2s, border-color 2s; }
+        html.day #ss-time { color: rgba(15, 23, 42, 0.85); }
+        html.day #ss-ampm { color: rgba(30, 41, 80, 0.7); }
+        html.day #ss-date { color: rgba(15, 23, 42, 0.75); }
+        html.day #ss-activity { color: #1e293b; background-color: rgba(255, 255, 255, 0.5); border-color: rgba(15, 23, 42, 0.15); }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden text-slate-100" id="screensaver-root">
+
+    <!-- Main Full-Screen Screensaver Canvas -->
+    <canvas id="screensaver-canvas" class="absolute inset-0 w-full h-full block"></canvas>
+
+    <!-- Classic Floating Screensaver Clock & Date Widget -->
+    <div id="clock-widget" class="absolute top-8 left-8 sm:top-12 sm:left-12 z-20 pointer-events-none transition-opacity duration-700">
+        <div class="flex items-baseline gap-2">
+            <span id="ss-time" class="mono text-4xl sm:text-6xl font-light tracking-tight text-white/80 drop-shadow-[0_4px_20px_rgba(0,0,0,0.65)]">12:00</span>
+            <span id="ss-ampm" class="mono text-sm sm:text-lg font-medium text-indigo-200/60 uppercase tracking-widest">AM</span>
+        </div>
+        <div id="ss-date" class="text-xs sm:text-sm font-medium text-slate-300/65 tracking-widest uppercase mt-1 pl-0.5 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
+            Thursday, November 12
+        </div>
+        <div id="ss-activity" class="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 backdrop-blur-md border border-white/10 text-[11px] text-indigo-200/75 transition-opacity duration-500">
+            <span id="ss-activity-icon">🌙</span>
+            <span id="ss-activity-text">Midnight porch patrol...</span>
+        </div>
+    </div>
+
+    <!-- Subtle Auto-Hiding Top-Right Controls -->
+    <div id="hud-controls" class="hud-fade absolute top-5 right-5 sm:top-7 sm:right-7 z-30 flex items-center gap-2">
+        <!-- Quick Sound Pill -->
+        <button id="btn-sound-quick" onclick="toggleSound()" title="Toggle Ambient Squeaks" class="w-10 h-10 rounded-full bg-slate-900/55 hover:bg-slate-800/80 backdrop-blur-md border border-white/15 flex items-center justify-center text-base shadow-lg transition active:scale-95">
+            🔇
+        </button>
+
+        <!-- Fullscreen Toggle Button -->
+        <button id="btn-fullscreen" onclick="toggleFullscreen()" title="Toggle Fullscreen (F)" class="w-10 h-10 rounded-full bg-slate-900/55 hover:bg-slate-800/80 backdrop-blur-md border border-white/15 flex items-center justify-center text-slate-200 shadow-lg transition active:scale-95">
+            <svg id="icon-fs-enter" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
+            <svg id="icon-fs-exit" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4H4m11 5V4h5M9 15v5H4m11-5v5h5" />
+            </svg>
+        </button>
+
+        <!-- Settings Gear Button -->
+        <button id="btn-settings" onclick="toggleSettingsDrawer()" title="Screensaver Settings" class="w-10 h-10 rounded-full bg-slate-900/55 hover:bg-slate-800/80 backdrop-blur-md border border-white/15 flex items-center justify-center text-slate-200 shadow-lg transition active:scale-95">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+        </button>
+    </div>
+
+    <!-- Glassmorphic Screensaver Settings Popover -->
+    <div id="settings-drawer" class="hidden absolute top-18 right-5 sm:top-20 sm:right-7 z-40 w-72 sm:w-80 bg-slate-950/80 backdrop-blur-xl border border-white/15 rounded-3xl p-4 shadow-2xl text-slate-100">
+        <div class="flex items-center justify-between pb-3 border-b border-white/10">
+            <div class="flex items-center gap-2">
+                <span class="text-lg">🦝</span>
+                <div>
+                    <h2 class="text-sm font-bold tracking-wide text-white">Pocket Possum</h2>
+                    <p class="text-[11px] text-slate-400">Screensaver Preferences</p>
+                </div>
+            </div>
+            <button onclick="toggleSettingsDrawer()" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs text-slate-300 transition">✕</button>
+        </div>
+
+        <div class="py-3 space-y-3 text-xs">
+            <!-- Scene Theme Selector -->
+            <div>
+                <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Screensaver Scene</label>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button onclick="setSceneTheme('porch')" id="theme-btn-porch" class="theme-chip py-2 px-2 rounded-xl border border-indigo-400/60 bg-indigo-500/25 text-white font-semibold text-center transition">
+                        🌙 Porch
+                    </button>
+                    <button onclick="setSceneTheme('void')" id="theme-btn-void" class="theme-chip py-2 px-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-center transition">
+                        🌌 OLED Void
+                    </button>
+                    <button onclick="setSceneTheme('synth')" id="theme-btn-synth" class="theme-chip py-2 px-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 font-semibold text-center transition">
+                        🌆 Synthwave
+                    </button>
+                </div>
+            </div>
+
+            <!-- Toggles List -->
+            <div class="space-y-2 pt-1">
+                <!-- Digital Clock Overlay -->
+                <div class="flex items-center justify-between bg-white/5 px-3 py-2 rounded-xl border border-white/10">
+                    <span class="font-medium text-slate-200">🕒 Floating Clock & Date</span>
+                    <button id="toggle-clock" onclick="toggleClockOverlay()" class="w-10 h-5 rounded-full bg-indigo-500 relative transition">
+                        <span class="dot absolute top-0.5 left-5 w-4 h-4 rounded-full bg-white transition-all"></span>
+                    </button>
+                </div>
+
+                <!-- Sound Effects (Muted by default for peaceful screensaver) -->
+                <div class="flex items-center justify-between bg-white/5 px-3 py-2 rounded-xl border border-white/10">
+                    <span class="font-medium text-slate-200">🔊 Soft Squeak Audio</span>
+                    <button id="toggle-sound" onclick="toggleSound()" class="w-10 h-5 rounded-full bg-slate-700 relative transition">
+                        <span class="dot absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-all"></span>
+                    </button>
+                </div>
+
+                <!-- Baby Joey Passenger -->
+                <div class="flex items-center justify-between bg-white/5 px-3 py-2 rounded-xl border border-white/10">
+                    <span class="font-medium text-slate-200">🐭 Baby Joey Passenger</span>
+                    <button id="toggle-joey" onclick="toggleJoey()" class="w-10 h-5 rounded-full bg-slate-700 relative transition">
+                        <span class="dot absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-all"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Possum Triggers -->
+            <div class="pt-1">
+                <label class="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Triggers & Treats</label>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button onclick="dropRandomSnack()" class="py-2 px-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 font-semibold transition active:scale-95">
+                        🍕 Snack
+                    </button>
+                    <button onclick="triggerTailHang()" class="py-2 px-2 rounded-xl bg-pink-500/20 hover:bg-pink-500/30 border border-pink-400/30 text-pink-200 font-semibold transition active:scale-95">
+                        🙃 Hang
+                    </button>
+                    <button onclick="triggerPlayDead()" class="py-2 px-2 rounded-xl bg-slate-500/25 hover:bg-slate-500/40 border border-white/20 text-slate-200 font-semibold transition active:scale-95">
+                        💀 Faint
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-400">
+            <span>Click Barnaby to pet • Double-click to startle</span>
+            <span class="mono bg-white/10 px-1.5 py-0.5 rounded text-slate-300">F = Fullscreen</span>
+        </div>
+    </div>
+
+    <!-- Subtle Hint Toast on Launch (Fades out automatically) -->
+    <div id="launch-toast" class="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-full bg-slate-950/75 backdrop-blur-md border border-white/15 text-xs text-slate-200/90 shadow-xl transition-opacity duration-1000">
+        ✨ Screensaver Active — Move mouse for settings or press <span class="mono font-bold text-indigo-300">F</span> for fullscreen
+    </div>
+
+    <script>
+        /**
+         * POCKET POSSUM — DESKTOP SCREENSAVER ENGINE
+         * Atmospheric Full-Screen Canvas + Autonomous Nocturnal AI + Auto-Hiding Glassmorphic HUD
+         */
+
+        // Burn-in protection (real screensaver mode only): slow-drifting scene, wandering clock, travelling moon.
+        const IS_SS = new URLSearchParams(location.search).get('ss') === '1';
+        const TAU = Math.PI * 2;
+        const secs = () => Date.now() / 1000;
+
+        // ---- Day / night by system clock -------------------------------------------------
+        // ?dn=auto|day|night  ?ds=<hour day starts>  ?ne=<hour night starts>
+        const QS = new URLSearchParams(location.search);
+        const DN = {
+            mode: QS.get('dn') || (IS_SS ? 'auto' : 'night'),
+            dayStart: parseFloat(QS.get('ds') ?? '7'),
+            nightStart: parseFloat(QS.get('ne') ?? '19'),
+        };
+
+        // 0 = full night, 1 = full day; eases over ~45 min around sunrise/sunset. OLED Void is always night.
+        function getDaylight() {
+            if (typeof config !== 'undefined' && config.theme === 'void') return 0;
+            if (DN.mode === 'day') return 1;
+            if (DN.mode === 'night') return 0;
+            const now = new Date();
+            const h = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+            const T = 0.75;
+            const smooth = (x, a, b) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+            const rise = smooth(h, DN.dayStart - T / 2, DN.dayStart + T / 2);
+            const set = smooth(h, DN.nightStart - T / 2, DN.nightStart + T / 2);
+            return Math.max(0, rise - set);
+        }
+
+        // ---- Seasons (from the user's local date; hemisphere inferred from their IANA time zone) ----
+        // ?season=auto|spring|summer|autumn|winter  ?hemi=auto|north|south
+        const SEASON_CFG = {
+            mode: QS.get('season') || (IS_SS ? 'auto' : 'summer'),
+            hemi: QS.get('hemi') || 'auto',
+        };
+
+        const SOUTH_TZ = /^(Australia\/|Antarctica\/|Pacific\/(Auckland|Fiji|Chatham|Tongatapu|Apia|Noumea|Port_Moresby|Guadalcanal|Efate|Tahiti|Norfolk|Rarotonga|Pago_Pago|Niue|Fakaofo|Marquesas|Gambier|Pitcairn|Easter|Galapagos|Wallis|Futuna|Funafuti)|America\/(Sao_Paulo|Argentina\/|Buenos_Aires|Cordoba|Mendoza|Santiago|Punta_Arenas|Montevideo|Lima|La_Paz|Asuncion|Cuiaba|Campo_Grande|Manaus|Bahia|Fortaleza|Recife|Belem|Maceio|Porto_Velho|Rio_Branco|Araguaina|Noronha)|Africa\/(Johannesburg|Maseru|Mbabane|Windhoek|Gaborone|Harare|Lusaka|Maputo|Luanda|Lubumbashi|Blantyre|Kinshasa)|Indian\/(Antananarivo|Mauritius|Reunion|Comoro|Mayotte|Maldives|Chagos)|Atlantic\/(St_Helena|South_Georgia|Stanley))/;
+
+        function getTimeZone() {
+            try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; }
+        }
+
+        function isSouthern() {
+            if (SEASON_CFG.hemi === 'south') return true;
+            if (SEASON_CFG.hemi === 'north') return false;
+            return SOUTH_TZ.test(getTimeZone());
+        }
+
+        function getSeason() {
+            if (SEASON_CFG.mode !== 'auto') return SEASON_CFG.mode;
+            let m = new Date().getMonth();               // local date in the system time zone
+            if (isSouthern()) m = (m + 6) % 12;
+            if (m >= 2 && m <= 4) return 'spring';
+            if (m >= 5 && m <= 7) return 'summer';
+            if (m >= 8 && m <= 10) return 'autumn';
+            return 'winter';
+        }
+
+        // sky = porch day sky (top, mid, horizon) · tree = pine colour by day · cloud = cloud fill
+        // fire = night firefly strength · fly = daytime flyers · fall = falling particles · snow = snow caps
+        const SEASONS = {
+            spring: { sky: ['#58b8f5', '#a2dcfa', '#e3f6ff'], tree: '#3f9a5a', cloud: 'rgba(255,255,255,0.9)',  fire: 0.8, fly: ['🦋'],        fall: 'petal', snow: false },
+            summer: { sky: ['#4aa3ee', '#8cc9f5', '#cfeaff'], tree: '#1f6b4a', cloud: 'rgba(255,255,255,0.88)', fire: 1.0, fly: ['🦋', '🐝'], fall: null,    snow: false },
+            autumn: { sky: ['#6a9bd0', '#a9c6de', '#f2dcc2'], tree: '#b0541f', cloud: 'rgba(240,236,232,0.9)',  fire: 0.45, fly: [],           fall: 'leaf',  snow: false },
+            winter: { sky: ['#8aa9c8', '#b9cde0', '#e6eef6'], tree: '#2c5b4e', cloud: 'rgba(226,232,240,0.93)', fire: 0,    fly: [],           fall: 'snow',  snow: true  },
+        };
+        let curSeasonName = 'summer';
+        let curSeason = SEASONS.summer;
+
+        // Blend two #rrggbb colours
+        function mix(a, b, t) {
+            const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+            const ch = (s) => { const x = (pa >> s) & 255, y = (pb >> s) & 255; return Math.round(x + (y - x) * t); };
+            return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+        }
+
+        const canvas = document.getElementById('screensaver-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        let railY = height - 68; // Wooden porch rail / beam top surface
+        let wireY = Math.max(115, height * 0.24); // Overhead moonlit branch / telephone wire
+
+        // ==========================================
+        // 1. SCREENSAVER CONFIG & AUTO-HIDING HUD
+        // ==========================================
+        const config = {
+            theme: 'porch', // 'porch' | 'void' | 'synth'
+            showClock: true,
+            soundEnabled: false, // Muted by default for peaceful screensaver mode
+            settingsOpen: false
+        };
+
+        let hudIdleTimer = null;
+
+        function wakeHUD() {
+            const hud = document.getElementById('hud-controls');
+            hud.classList.remove('hud-hidden');
+
+            clearTimeout(hudIdleTimer);
+            if (!config.settingsOpen) {
+                hudIdleTimer = setTimeout(() => {
+                    hud.classList.add('hud-hidden');
+                }, 3000);
+            }
+        }
+
+        function toggleSettingsDrawer() {
+            config.settingsOpen = !config.settingsOpen;
+            const drawer = document.getElementById('settings-drawer');
+            if (config.settingsOpen) {
+                drawer.classList.remove('hidden');
+                clearTimeout(hudIdleTimer);
+                document.getElementById('hud-controls').classList.remove('hud-hidden');
+            } else {
+                drawer.classList.add('hidden');
+                wakeHUD();
+            }
+        }
+
+        function setSwitchUI(btnId, isOn) {
+            const btn = document.getElementById(btnId);
+            const dot = btn.querySelector('.dot');
+            if (isOn) {
+                btn.classList.remove('bg-slate-700');
+                btn.classList.add('bg-indigo-500');
+                dot.style.left = '1.25rem';
+            } else {
+                btn.classList.remove('bg-indigo-500');
+                btn.classList.add('bg-slate-700');
+                dot.style.left = '0.125rem';
+            }
+        }
+
+        function toggleClockOverlay() {
+            config.showClock = !config.showClock;
+            const clockEl = document.getElementById('clock-widget');
+            clockEl.style.opacity = config.showClock ? '1' : '0';
+            setSwitchUI('toggle-clock', config.showClock);
+        }
+
+        function setSceneTheme(themeName) {
+            config.theme = themeName;
+            document.querySelectorAll('.theme-chip').forEach(el => {
+                el.classList.remove('border-indigo-400/60', 'bg-indigo-500/25', 'text-white');
+                el.classList.add('border-white/10', 'bg-white/5', 'text-slate-300');
+            });
+            const activeChip = document.getElementById(`theme-btn-${themeName}`);
+            if (activeChip) {
+                activeChip.classList.remove('border-white/10', 'bg-white/5', 'text-slate-300');
+                activeChip.classList.add('border-indigo-400/60', 'bg-indigo-500/25', 'text-white');
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        document.addEventListener('fullscreenchange', () => {
+            const isFs = !!document.fullscreenElement;
+            document.getElementById('icon-fs-enter').classList.toggle('hidden', isFs);
+            document.getElementById('icon-fs-exit').classList.toggle('hidden', !isFs);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'f') {
+                toggleFullscreen();
+            } else if (e.key === 'Escape' && config.settingsOpen) {
+                toggleSettingsDrawer();
+            }
+            wakeHUD();
+        });
+
+        // ==========================================
+        // 2. FLOATING DIGITAL CLOCK & DATE
+        // ==========================================
+        function updateClock() {
+            const now = new Date();
+            let hours = now.getHours();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12 || 12;
+            const mins = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('ss-time').textContent = `${hours}:${mins}`;
+            document.getElementById('ss-ampm').textContent = ampm;
+
+            const dateStr = now.toLocaleDateString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric'
+            });
+            document.getElementById('ss-date').textContent = dateStr;
+
+            if (IS_SS) wanderClock();
+        }
+
+        // Clock/date/status pill roams the upper 70% of the screen on two incommensurate slow cycles,
+        // so no text pixel stays lit in one place.
+        function wanderClock() {
+            const el = document.getElementById('clock-widget');
+            el.style.transition = 'opacity 0.7s, transform 1.2s linear';
+            const m = secs();
+            const rangeX = Math.max(0, width - el.offsetWidth - 120);
+            const rangeY = Math.max(0, height * 0.7 - el.offsetHeight - 60);
+            const x = rangeX * (0.5 + 0.5 * Math.sin(TAU * m / 660));
+            const y = rangeY * (0.5 + 0.5 * Math.sin(TAU * m / 420 + 1.3));
+            el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ==========================================
+        // 3. WEB AUDIO API SOFT SYNTHESIZER
+        // ==========================================
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function toggleSound() {
+            config.soundEnabled = !config.soundEnabled;
+            document.getElementById('btn-sound-quick').textContent = config.soundEnabled ? '🔊' : '🔇';
+            setSwitchUI('toggle-sound', config.soundEnabled);
+            if (config.soundEnabled) {
+                initAudio();
+                playSqueak();
+            }
+        }
+
+        function playSqueak() {
+            if (!config.soundEnabled) return;
+            initAudio();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(640, now);
+            osc.frequency.exponentialRampToValueAtTime(1120, now + 0.08);
+            osc.frequency.exponentialRampToValueAtTime(810, now + 0.16);
+
+            gain.gain.setValueAtTime(0.06, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.17);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.18);
+        }
+
+        function playSniff() {
+            if (!config.soundEnabled) return;
+            initAudio();
+            const now = audioCtx.currentTime;
+            for (let i = 0; i < 2; i++) {
+                const t = now + i * 0.09;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, t);
+                osc.frequency.exponentialRampToValueAtTime(490, t + 0.05);
+                gain.gain.setValueAtTime(0.03, t);
+                gain.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(t);
+                osc.stop(t + 0.065);
+            }
+        }
+
+        function playMunch() {
+            if (!config.soundEnabled) return;
+            initAudio();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(180 + Math.random() * 70, now);
+            osc.frequency.exponentialRampToValueAtTime(85, now + 0.06);
+            gain.gain.setValueAtTime(0.035, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.07);
+        }
+
+        function playFaintSound() {
+            if (!config.soundEnabled) return;
+            initAudio();
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.exponentialRampToValueAtTime(125, now + 0.4);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.44);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.45);
+        }
+
+        // ==========================================
+        // 4. NOCTURNAL ENVIRONMENT (STARS, FIREFLIES, PORCH, TRASH CAN)
+        // ==========================================
+        const stars = [];
+        const fireflies = [];
+        const snacks = [];
+        const particles = [];
+
+        const trashCan = {
+            x: 88,
+            tipped: false,
+            tipAngle: 0,
+            cooldown: 0
+        };
+
+        const SNACK_TYPES = [
+            { emoji: '🍕', name: 'midnight pizza crust' },
+            { emoji: '🍎', name: 'crisp apple core' },
+            { emoji: '🫐', name: 'wild moonberries' },
+            { emoji: '🪲', name: 'crunchy June bug' }
+        ];
+
+        const clouds = [];
+
+        function initEnvironmentEntities() {
+            fallingFor = ''; // re-seed seasonal particles for the new screen size
+            clouds.length = 0;
+            const cloudCount = Math.max(4, Math.min(9, Math.floor(width / 260)));
+            for (let i = 0; i < cloudCount; i++) {
+                clouds.push({
+                    x: Math.random() * width,
+                    y: 70 + Math.random() * Math.max(80, railY * 0.5),
+                    s: 0.8 + Math.random() * 0.9,
+                    v: 0.08 + Math.random() * 0.18,
+                });
+            }
+
+            stars.length = 0;
+            const starCount = Math.min(130, Math.floor((width * height) / 10000));
+            for (let i = 0; i < starCount; i++) {
+                stars.push({
+                    x: Math.random() * width,
+                    y: Math.random() * (height * 0.78),
+                    r: Math.random() * 1.6 + 0.4,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: 0.015 + Math.random() * 0.03
+                });
+            }
+
+            fireflies.length = 0;
+            const ffCount = Math.max(10, Math.min(24, Math.floor(width / 65)));
+            for (let i = 0; i < ffCount; i++) {
+                fireflies.push({
+                    x: Math.random() * width,
+                    y: wireY + 30 + Math.random() * (railY - wireY - 60),
+                    vx: (Math.random() - 0.5) * 0.6,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    phase: Math.random() * Math.PI * 2,
+                    r: 2.2 + Math.random() * 1.4
+                });
+            }
+        }
+
+        // Seasonal weather: snow / autumn leaves / spring petals
+        let falling = [];
+        let fallingFor = '';
+
+        function initFalling() {
+            falling = [];
+            fallingFor = curSeasonName;
+            const kind = curSeason.fall;
+            if (!kind) return;
+            const n = kind === 'snow' ? Math.min(220, Math.max(60, Math.floor(width / 9))) : kind === 'leaf' ? 26 : 40;
+            for (let i = 0; i < n; i++) {
+                falling.push({
+                    x: Math.random() * width,
+                    y: Math.random() * railY,
+                    vy: kind === 'snow' ? 0.5 + Math.random() * 0.9 : 0.6 + Math.random() * 0.8,
+                    sway: 0.4 + Math.random() * 1.0,
+                    phase: Math.random() * TAU,
+                    size: kind === 'snow' ? 1.2 + Math.random() * 2.4 : 11 + Math.random() * 8,
+                    rot: Math.random() * TAU,
+                    spin: (Math.random() - 0.5) * 0.06,
+                    color: ['#d9480f', '#e8890c', '#b91c1c', '#d4a017', '#a3470f'][Math.floor(Math.random() * 5)],
+                });
+            }
+        }
+
+        function updateAndDrawFalling(time, D) {
+            if (config.theme === 'void') return;
+            if (fallingFor !== curSeasonName) initFalling();
+            const kind = curSeason.fall;
+            if (!kind) return;
+
+            ctx.save();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            for (const p of falling) {
+                p.y += p.vy;
+                p.x += Math.sin(time * 0.02 * p.sway + p.phase) * 0.6 + (kind === 'snow' ? 0.1 : 0.35);
+                p.rot += p.spin;
+                if (p.y > railY - 4) { p.y = -12; p.x = Math.random() * width; }
+                if (p.x > width + 20) p.x = -20;
+
+                if (kind === 'snow') {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${(0.5 + 0.4 * D).toFixed(2)})`;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, TAU);
+                    ctx.fill();
+                } else if (kind === 'leaf') {
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rot);
+                    // Leaf: pointed ellipse with a centre vein
+                    const L = p.size * 0.7, Wd = p.size * 0.38;
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath();
+                    ctx.moveTo(-L, 0);
+                    ctx.quadraticCurveTo(0, -Wd * 2, L, 0);
+                    ctx.quadraticCurveTo(0, Wd * 2, -L, 0);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(60, 20, 0, 0.45)';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(-L, 0);
+                    ctx.lineTo(L * 0.8, 0);
+                    ctx.stroke();
+                    ctx.restore();
+                } else {
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rot);
+                    ctx.fillStyle = 'rgba(251, 207, 232, 0.92)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, p.size * 0.5, p.size * 0.28, 0, 0, TAU);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+            ctx.restore();
+        }
+
+        function spawnSnackAt(x, y) {
+            const chosen = SNACK_TYPES[Math.floor(Math.random() * SNACK_TYPES.length)];
+            snacks.push({
+                ...chosen,
+                x: Math.max(40, Math.min(width - 40, x)),
+                y,
+                vx: (Math.random() - 0.5) * 2.2,
+                vy: -3.2,
+                bites: 3
+            });
+        }
+
+        function dropRandomSnack() {
+            const rx = 140 + Math.random() * (width - 220);
+            spawnSnackAt(rx, railY - 110);
+            playSniff();
+        }
+
+        function spawnParticles(x, y, symbol, count = 3) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x + (Math.random() - 0.5) * 26,
+                    y: y + (Math.random() - 0.5) * 12,
+                    vx: (Math.random() - 0.5) * 1.1,
+                    vy: -0.9 - Math.random() * 1.0,
+                    symbol,
+                    alpha: 1,
+                    scale: 0.85 + Math.random() * 0.35,
+                    life: 60 + Math.random() * 25
+                });
+            }
+        }
+
+        // Compute wire sag Y at any horizontal position X
+        function getWireYAt(x) {
+            const norm = (x / width) * 2 - 1; // -1 at edges, 0 at center
+            const sag = (1 - norm * norm) * 26;
+            return wireY + sag;
+        }
+
+        function drawBackgroundScene(time) {
+            const D = getDaylight();
+            document.documentElement.classList.toggle('day', D > 0.5);
+            curSeasonName = getSeason();
+            curSeason = SEASONS[curSeasonName] || SEASONS.summer;
+
+            // 1. Sky / Backdrop
+            if (config.theme === 'porch') {
+                const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+                skyGrad.addColorStop(0, mix('#090d1f', curSeason.sky[0], D));
+                skyGrad.addColorStop(0.55, mix('#131b3a', curSeason.sky[1], D));
+                skyGrad.addColorStop(1, mix('#1c2445', curSeason.sky[2], D));
+                ctx.fillStyle = skyGrad;
+                ctx.fillRect(0, 0, width, height);
+            } else if (config.theme === 'void') {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(0, 0, width, height);
+            } else if (config.theme === 'synth') {
+                const synthGrad = ctx.createLinearGradient(0, 0, 0, height);
+                synthGrad.addColorStop(0, mix('#0d061f', '#ff8ccf', D));
+                synthGrad.addColorStop(0.55, mix('#241042', '#ffc58f', D));
+                synthGrad.addColorStop(1, mix('#3b1557', '#fff0c4', D));
+                ctx.fillStyle = synthGrad;
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            // Sunrise / sunset glow along the horizon, strongest mid-transition
+            const twilight = 1 - Math.abs(2 * D - 1);
+            if (config.theme !== 'void' && twilight > 0.02) {
+                const glowGrad = ctx.createLinearGradient(0, height * 0.35, 0, railY);
+                glowGrad.addColorStop(0, 'rgba(255, 120, 60, 0)');
+                glowGrad.addColorStop(1, `rgba(255, 140, 70, ${(twilight * 0.55).toFixed(2)})`);
+                ctx.fillStyle = glowGrad;
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            // 2. Twinkling Stars (shown in Porch & Synth themes)
+            if (config.theme !== 'void' && D < 0.98) {
+                for (const s of stars) {
+                    const alpha = (0.25 + 0.75 * (0.5 + 0.5 * Math.sin(time * s.speed + s.phase))) * (1 - D);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(2)})`;
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // Sun + drifting clouds (fade in with daylight)
+            if (config.theme !== 'void' && D > 0.01) {
+                let sx = width * 0.82, sy = Math.max(105, height * 0.17);
+                if (IS_SS) {
+                    const m = secs();
+                    sx = width * (0.5 + 0.38 * Math.sin(TAU * m / 3000));
+                    sy = Math.max(105, height * 0.17) + height * 0.05 * Math.cos(TAU * m / 3000);
+                }
+                const synth = config.theme === 'synth';
+                ctx.save();
+                ctx.globalAlpha = D;
+                const sunHalo = ctx.createRadialGradient(sx, sy, 10, sx, sy, 190);
+                sunHalo.addColorStop(0, synth ? 'rgba(255, 140, 120, 0.55)' : 'rgba(255, 236, 150, 0.6)');
+                sunHalo.addColorStop(1, 'rgba(255, 236, 150, 0)');
+                ctx.fillStyle = sunHalo;
+                ctx.beginPath(); ctx.arc(sx, sy, 190, 0, TAU); ctx.fill();
+                ctx.fillStyle = synth ? '#ff9e6d' : '#fde047';
+                ctx.beginPath(); ctx.arc(sx, sy, 36, 0, TAU); ctx.fill();
+                ctx.fillStyle = synth ? '#ffd0a8' : '#fef9c3';
+                ctx.beginPath(); ctx.arc(sx - 6, sy - 6, 22, 0, TAU); ctx.fill();
+
+                for (const c of clouds) {
+                    c.x += c.v;
+                    if (c.x > width + 160) c.x = -160;
+                    ctx.fillStyle = synth ? 'rgba(255, 235, 245, 0.85)' : curSeason.cloud;
+                    ctx.beginPath();
+                    ctx.arc(c.x, c.y, 26 * c.s, 0, TAU);
+                    ctx.arc(c.x + 30 * c.s, c.y - 12 * c.s, 32 * c.s, 0, TAU);
+                    ctx.arc(c.x + 66 * c.s, c.y - 2 * c.s, 27 * c.s, 0, TAU);
+                    ctx.arc(c.x + 34 * c.s, c.y + 8 * c.s, 26 * c.s, 0, TAU);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+
+            // 3. Glowing Crescent Moon (Top Right Area)
+            if (config.theme !== 'void' && D < 0.99) {
+                let moonX = width * 0.82;
+                let moonY = Math.max(105, height * 0.17);
+                if (IS_SS) {
+                    // Slow sweep back and forth across the sky (~25 min per pass) with a gentle arc
+                    const m = secs();
+                    moonX = width * (0.5 + 0.38 * Math.sin(TAU * m / 3000));
+                    moonY = Math.max(105, height * 0.17) + height * 0.05 * Math.cos(TAU * m / 3000);
+                }
+                ctx.save();
+                ctx.globalAlpha = 1 - D;
+                // Soft lunar halo
+                const halo = ctx.createRadialGradient(moonX, moonY, 8, moonX, moonY, 110);
+                halo.addColorStop(0, config.theme === 'synth' ? 'rgba(244, 114, 182, 0.25)' : 'rgba(254, 249, 195, 0.22)');
+                halo.addColorStop(1, 'rgba(254, 249, 195, 0)');
+                ctx.fillStyle = halo;
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 110, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Crescent disc
+                ctx.fillStyle = config.theme === 'synth' ? '#fbcfe8' : '#fef9c3';
+                // (true crescent via clip + even-odd, so it stays correct while fading over any sky colour)
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 28, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 28, 0, Math.PI * 2);
+                ctx.arc(moonX - 11, moonY - 7, 25, 0, Math.PI * 2);
+                ctx.fill('evenodd');
+                ctx.restore();
+                ctx.restore();
+            }
+
+            // 4. Distant Pine Tree Silhouettes (Porch & Synth)
+            if (config.theme === 'porch' || config.theme === 'synth') {
+                ctx.fillStyle = config.theme === 'synth' ? mix('#16092b', '#8a4a86', D) : mix('#0a0f22', curSeason.tree, D);
+                const treeSpacing = 75;
+                for (let tx = -20; tx < width + 60; tx += treeSpacing) {
+                    const seed = Math.sin(tx * 0.05) * 28;
+                    const treeH = 110 + seed;
+                    const baseY = railY + 8;
+
+                    // Layered pine triangles
+                    for (let tier = 0; tier < 3; tier++) {
+                        const tierTop = baseY - treeH + tier * 24;
+                        const tierBottom = baseY - tier * 18;
+                        const halfW = 24 + tier * 11;
+                        ctx.beginPath();
+                        ctx.moveTo(tx, tierTop);
+                        ctx.lineTo(tx - halfW, tierBottom);
+                        ctx.lineTo(tx + halfW, tierBottom);
+                        ctx.closePath();
+                        ctx.fill();
+
+                        if (curSeason.snow) {
+                            // Snow settled on the top of each pine tier
+                            const k = 0.42;
+                            ctx.save();
+                            ctx.fillStyle = mix('#7f8db0', '#ffffff', D);
+                            ctx.beginPath();
+                            ctx.moveTo(tx, tierTop);
+                            ctx.lineTo(tx - halfW * k, tierTop + (tierBottom - tierTop) * k);
+                            ctx.lineTo(tx + halfW * k, tierTop + (tierBottom - tierTop) * k);
+                            ctx.closePath();
+                            ctx.fill();
+                            ctx.restore();
+                        }
+                    }
+                }
+            }
+
+            // 5. Overhead Moonlit Wire / Branch (Barnaby hangs & walks here!)
+            ctx.save();
+            ctx.strokeStyle = mix('#1e293b', '#4b5563', D);
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, wireY);
+            ctx.quadraticCurveTo(width * 0.5, wireY + 26, width, wireY);
+            ctx.stroke();
+
+            // Subtle moonlight rim highlight along top of wire
+            ctx.strokeStyle = config.theme === 'synth' ? 'rgba(244,114,182,0.4)' : 'rgba(199,210,254,0.28)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, wireY - 1.5);
+            ctx.quadraticCurveTo(width * 0.5, wireY + 24.5, width, wireY - 1.5);
+            ctx.stroke();
+            ctx.restore();
+
+            // 6. Cozy Wooden Porch Rail & Vertical Posts at Bottom
+            ctx.save();
+            if (config.theme === 'void') {
+                // Minimalist glowing horizon line in OLED Void mode
+                ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, railY);
+                ctx.lineTo(width, railY);
+                ctx.stroke();
+            } else {
+                // Vertical balusters below the top rail
+                const postGap = 95;
+                ctx.fillStyle = config.theme === 'synth' ? mix('#1b0c33', '#9a5a92', D) : mix('#141726', '#6b5440', D);
+                for (let px = 30; px < width; px += postGap) {
+                    ctx.fillRect(px, railY + 14, 14, height - railY);
+                }
+
+                // Main horizontal porch top beam
+                const beamGrad = ctx.createLinearGradient(0, railY, 0, railY + 18);
+                if (config.theme === 'synth') {
+                    beamGrad.addColorStop(0, mix('#4c1d95', '#c47ac4', D));
+                    beamGrad.addColorStop(1, mix('#1e1b4b', '#8a4a86', D));
+                } else {
+                    beamGrad.addColorStop(0, mix('#33292a', '#a07c55', D));
+                    beamGrad.addColorStop(1, mix('#1c171a', '#74583c', D));
+                }
+                ctx.fillStyle = beamGrad;
+                ctx.fillRect(0, railY, width, 18);
+
+                // Moonlit top edge highlight on porch rail
+                ctx.fillStyle = config.theme === 'synth' ? 'rgba(232,121,249,0.45)' : 'rgba(226,232,240,0.22)';
+                ctx.fillRect(0, railY, width, 2);
+
+                if (curSeason.snow) {
+                    ctx.fillStyle = mix('#8a98b8', '#ffffff', D);
+                    ctx.fillRect(0, railY - 3, width, 5);
+                }
+            }
+            ctx.restore();
+
+            // 7. Cozy Corner Porch Trash Can (Clickable & Auto-Rummaged!)
+            drawPorchTrashCan();
+        }
+
+        function drawPorchTrashCan() {
+            trashCan.x = Math.min(92, width * 0.14);
+            const targetAngle = trashCan.tipped ? 1.32 : 0;
+            trashCan.tipAngle += (targetAngle - trashCan.tipAngle) * 0.14;
+
+            ctx.save();
+            ctx.translate(trashCan.x, railY);
+            ctx.rotate(trashCan.tipAngle);
+
+            // Galvanized Metal Can Body
+            const canGrad = ctx.createLinearGradient(-16, -42, 16, 0);
+            canGrad.addColorStop(0, '#64748b');
+            canGrad.addColorStop(0.5, '#94a3b8');
+            canGrad.addColorStop(1, '#475569');
+
+            ctx.fillStyle = canGrad;
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(-15, -38, 30, 38, [3, 3, 5, 5]);
+            ctx.fill();
+            ctx.stroke();
+
+            // Vertical ribs on trash can
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.35)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(-6, -33); ctx.lineTo(-6, -5);
+            ctx.moveTo(0, -33);  ctx.lineTo(0, -5);
+            ctx.moveTo(6, -33);  ctx.lineTo(6, -5);
+            ctx.stroke();
+
+            // Lid (slightly ajar if tipped)
+            ctx.save();
+            if (trashCan.tipped) {
+                ctx.translate(14, -36);
+                ctx.rotate(0.55);
+            } else {
+                ctx.translate(0, -39);
+            }
+            ctx.fillStyle = '#94a3b8';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(-17, -4, 34, 5, 3);
+            ctx.fill();
+            ctx.stroke();
+
+            // Lid handle
+            ctx.beginPath();
+            ctx.roundRect(-5, -8, 10, 4, 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        function updateAndDrawFireflies(time) {
+            const Dff = getDaylight();
+            for (const f of fireflies) {
+                f.x += f.vx + Math.sin(time * 0.02 + f.phase) * 0.25;
+                f.y += f.vy + Math.cos(time * 0.018 + f.phase) * 0.2;
+
+                // Soft bounds
+                if (f.x < 20) f.vx = Math.abs(f.vx);
+                if (f.x > width - 20) f.vx = -Math.abs(f.vx);
+                if (f.y < wireY + 10) f.vy = Math.abs(f.vy);
+                if (f.y > railY - 18) f.vy = -Math.abs(f.vy);
+
+                const glow = (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(time * 0.06 + f.phase))) * (1 - Dff) * curSeason.fire;
+                const color = config.theme === 'synth' ? '244, 114, 182' : '190, 242, 100';
+
+                // By day the fireflies become butterflies and bees
+                const flyers = curSeason.fly;
+                if (Dff > 0.02 && flyers.length) {
+                    ctx.save();
+                    ctx.globalAlpha = Dff;
+                    ctx.font = '18px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(flyers[f.phase > 3.1 ? 0 : flyers.length - 1], f.x, f.y + Math.sin(time * 0.1 + f.phase) * 3);
+                    ctx.restore();
+                }
+
+                ctx.save();
+                const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.r * 5);
+                grad.addColorStop(0, `rgba(${color}, ${(glow * 0.9).toFixed(2)})`);
+                grad.addColorStop(1, `rgba(${color}, 0)`);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, f.r * 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = `rgba(255, 255, 230, ${glow.toFixed(2)})`;
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, f.r * 0.65, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // ==========================================
+        // 5. AUTONOMOUS SCREENSAVER POSSUM AI
+        // ==========================================
+        let possum = {
+            x: width * 0.52,
+            y: railY,
+            vx: 0,
+            vy: 0,
+            dir: 1,
+            onWire: false,
+            state: 'WALK', // WALK, IDLE, SNIFF, GROOM, SLEEP, HANG, CHASE_FIREFLY, RUMMAGE, EAT, PLAY_DEAD
+            stateTimer: 180,
+            animFrame: 0,
+            hasJoey: false,
+            targetSnack: null,
+            targetFirefly: null,
+            hangX: width * 0.5,
+            hangLength: 88,
+            peekEye: false,
+            earTwitch: 0,
+            tailAngle: 0,
+            sniffOffset: 0
+        };
+
+        let lastBadgeText = '';
+
+        // Mirror badge text to the host's log.txt (no-op in a plain browser)
+        function hostLog(msg) {
+            try { if (window.chrome && chrome.webview) chrome.webview.postMessage('log: ' + msg); } catch (e) { /* ignore */ }
+        }
+
+        function setActivityBadge(icon, text, force) {
+            // With two possums, only Barnaby's own routine drives the badge; chaos events pass force.
+            if (!force && typeof barnaby !== 'undefined' && possum !== barnaby) return;
+            if (text === lastBadgeText) return; // unchanged: skip the DOM write (the AI re-sets it every frame)
+            lastBadgeText = text;
+            if (typeof mama !== 'undefined' && (bandit.present || mama.present)) hostLog(text);
+            document.getElementById('ss-activity-icon').textContent = icon;
+            document.getElementById('ss-activity-text').textContent = text;
+        }
+
+        function toggleJoey() {
+            possum.hasJoey = !possum.hasJoey;
+            setSwitchUI('toggle-joey', possum.hasJoey);
+            if (possum.hasJoey) {
+                playSqueak();
+                spawnParticles(possum.x, possum.y - 34, '❤️', 4);
+                setActivityBadge('🐭', 'Carrying baby joey on back');
+            } else {
+                setActivityBadge('🦝', 'Midnight porch patrol...');
+            }
+        }
+
+        function triggerPlayDead() {
+            possum.state = 'PLAY_DEAD';
+            possum.stateTimer = 250;
+            possum.peekEye = false;
+            possum.onWire = false;
+            possum.vx = 0;
+            possum.vy = -4.2;
+            playFaintSound();
+            spawnParticles(possum.x, possum.y - 25, '💫', 3);
+            setActivityBadge('💀', 'Playing dead! (Shhh...)');
+        }
+
+        function triggerTailHang() {
+            possum.state = 'HANG';
+            possum.stateTimer = 340;
+            possum.onWire = false;
+            possum.hangX = Math.max(95, Math.min(width - 95, possum.x));
+            possum.x = possum.hangX;
+            possum.y = getWireYAt(possum.hangX) + possum.hangLength;
+            possum.vx = 0;
+            possum.vy = 0;
+            playSqueak();
+            setActivityBadge('🙃', 'Hanging from the moonlit wire');
+        }
+
+        // ==========================================
+        // 5b. SECOND POSSUM — "Bandit" arrives after dark and stirs up trouble
+        // ==========================================
+        const barnaby = possum;
+        barnaby.name = 'Barnaby';
+        const bandit = Object.assign({}, possum, {
+            name: 'Bandit', present: false, tint: 'sepia(0.75) saturate(1.5) brightness(0.82) hue-rotate(-14deg)', scale: 0.9,
+            x: -100, state: 'IDLE', stateTimer: 60, hasJoey: false, onWire: false, animFrame: 2.5,
+            targetSnack: null, targetFirefly: null, chaseTarget: null, fleeFrom: null, enterX: 0,
+        });
+
+        const chaos = { timer: 600, later: [] };
+        const FREE_STATES = ['IDLE', 'WALK', 'SNIFF', 'GROOM', 'CHASE_FIREFLY'];
+        const isFree = (p) => !p.onWire && FREE_STATES.includes(p.state);
+
+        // Run fn with `possum` temporarily pointing at p (the AI/draw code works on the global `possum`)
+        function as(p, fn) {
+            const prev = possum;
+            possum = p;
+            try { fn(); } finally { possum = prev; }
+        }
+        function later(frames, fn) { chaos.later.push({ t: frames, fn }); }
+
+        // ---- Maple (mama) and her three joeys: they turn up a little after Bandit ----
+        barnaby.present = true;
+        chaos.night = 0; // frames spent in full darkness (the family arrives after ~10 s)
+
+        const mama = Object.assign({}, possum, {
+            name: 'Maple', present: false, scale: 0.95,
+            tint: 'sepia(0.4) saturate(1.3) hue-rotate(-30deg) brightness(1.05)',
+            x: -100, state: 'IDLE', stateTimer: 60, hasJoey: false, onWire: false, animFrame: 4.2,
+            targetSnack: null, targetFirefly: null, chaseTarget: null, fleeFrom: null, enterX: 0,
+        });
+
+        const babies = [
+            { name: 'Pip', tint: null },
+            { name: 'Nibs', tint: 'sepia(0.75) saturate(1.5) brightness(0.85) hue-rotate(-14deg)' },
+            { name: 'Dot', tint: 'hue-rotate(35deg) saturate(1.25) brightness(1.05)' },
+        ].map((spec, i) => Object.assign({}, possum, {
+            name: spec.name, tint: spec.tint, isBaby: true, idx: i, present: false, riding: false, rideTimer: 0,
+            scale: 0.5, x: -200, vy: 0, state: 'IDLE', stateTimer: 0, hasJoey: false, onWire: false,
+            animFrame: i * 2, trail: -1, lastLeaderX: null, chaseT: 0, eatTick: 0, targetSnack: null,
+        }));
+
+        function startLeave(p) {
+            p.onWire = false; p.vy = 0;
+            p.state = 'LEAVE'; p.stateTimer = 99999;
+            p.dir = p.x < width / 2 ? -1 : 1;
+            p.hasJoey = false;
+        }
+
+        function manageCast() {
+            const D = getDaylight();
+            chaos.night = D < 0.25 ? chaos.night + 1 : 0;
+
+            // Bandit
+            const b = bandit;
+            if (!b.present && D < 0.25) {
+                b.present = true;
+                b.dir = Math.random() < 0.5 ? 1 : -1;
+                b.x = b.dir > 0 ? -70 : width + 70;
+                b.y = railY; b.vy = 0; b.onWire = false;
+                b.state = 'ENTER'; b.stateTimer = 99999;
+                b.enterX = width * (0.25 + Math.random() * 0.5);
+                b.hasJoey = false;
+                chaos.timer = 420;
+                setActivityBadge('🦝', 'A second possum wandered in after dark!');
+            } else if (b.present && D > 0.6 && b.state !== 'LEAVE') {
+                startLeave(b);
+                setActivityBadge('🌅', 'Bandit slinks off as the sun comes up');
+            }
+
+            // Maple + joeys
+            if (!mama.present && chaos.night > 600) {
+                mama.present = true;
+                mama.dir = Math.random() < 0.5 ? 1 : -1;
+                mama.x = mama.dir > 0 ? -70 : width + 70;
+                mama.y = railY; mama.vy = 0; mama.onWire = false;
+                mama.state = 'ENTER'; mama.stateTimer = 99999;
+                mama.enterX = width * (0.2 + Math.random() * 0.6);
+                mama.hasJoey = false;
+                babies.forEach((k) => {
+                    k.present = true; k.riding = false;
+                    k.dir = mama.dir;
+                    k.x = mama.x - mama.dir * 46 * (k.idx + 1);
+                    k.y = railY; k.vy = 0;
+                    k.state = 'WALK'; k.trail = -mama.dir; k.lastLeaderX = null; k.chaseT = 0;
+                });
+                chaos.timer = Math.min(chaos.timer, 600);
+                setActivityBadge('🦝', 'Maple and her three joeys joined the porch party!');
+            } else if (mama.present && D > 0.6 && mama.state !== 'LEAVE') {
+                startLeave(mama);
+                babies.forEach((k) => { k.riding = false; k.state = 'LEAVE'; k.dir = mama.dir; k.chaseT = 0; });
+                setActivityBadge('🌅', 'Maple herds her joeys home for the day');
+            }
+        }
+
+        // A joey occasionally hitches a ride on Maple's back
+        function manageRide() {
+            const rider = babies.find((k) => k.riding);
+            if (rider) {
+                rider.rideTimer--;
+                const bad = ['SLEEP', 'HANG', 'PLAY_DEAD', 'LEAVE', 'EAT'].includes(mama.state) || mama.onWire || !mama.present;
+                if (rider.rideTimer <= 0 || bad) {
+                    rider.riding = false;
+                    rider.x = mama.x; rider.y = mama.y; rider.vy = -4;
+                    mama.hasJoey = false;
+                    if (mama.present) spawnParticles(mama.x, mama.y - 36, '✨', 2);
+                }
+                return;
+            }
+            if (mama.present && mama.state === 'WALK' && Math.random() < 0.0015) {
+                const cand = babies.filter((k) => k.present && (k.state === 'WALK' || k.state === 'IDLE'));
+                if (!cand.length) return;
+                const r = cand[Math.floor(Math.random() * cand.length)];
+                r.riding = true; r.rideTimer = 480 + Math.random() * 360;
+                mama.hasJoey = true;
+                spawnParticles(mama.x, mama.y - 36, '❤️', 2);
+                setActivityBadge('🥰', `${r.name} hopped on Maple's back for a ride`);
+            }
+        }
+
+        // Joey behaviour: trail Maple in a line, hop about, nap beside her, mob snacks, harass Bandit
+        function updateBaby(b) {
+            b.animFrame += 0.14;
+            if (Math.random() < 0.015) b.earTwitch = 1;
+            if (b.earTwitch > 0) b.earTwitch = Math.max(0, b.earTwitch - 0.08);
+            if (b.riding) return;
+
+            if (b.y < railY || b.vy < 0) {
+                b.vy += 0.52; b.y += b.vy;
+                if (b.y >= railY) { b.y = railY; b.vy = 0; }
+            }
+
+            if (b.state === 'LEAVE') {
+                b.x += b.dir * 2.1;
+                if (b.x < -70 || b.x > width + 70) b.present = false;
+                return;
+            }
+            if (b.state === 'PLAY_DEAD') {
+                b.stateTimer--;
+                if (b.stateTimer < 80) b.peekEye = true;
+                if (b.stateTimer <= 0) { b.state = 'IDLE'; b.peekEye = false; b.vy = -3; }
+                return;
+            }
+
+            const L = mama;
+            const sleeping = L.present && L.state === 'SLEEP';
+            let tx;
+            let speed = 2.6;
+
+            if (b.chaseT > 0 && bandit.present) {
+                b.chaseT--;
+                tx = bandit.x; speed = 3.1;
+                if (Math.abs(tx - b.x) < 40 && b.y >= railY - 1 && Math.random() < 0.03) b.vy = -5;
+            } else if (snacks.length && !sleeping) {
+                const s = snacks[0];
+                const sdx = s.x - b.x;
+                if (Math.abs(sdx) > 16) {
+                    b.state = 'WALK'; b.dir = sdx > 0 ? 1 : -1; b.x += b.dir * 2.4;
+                    return;
+                }
+                b.state = 'EAT'; b.dir = sdx >= 0 ? 1 : -1;
+                b.eatTick++;
+                if (b.eatTick % 30 === 0) {
+                    playMunch();
+                    spawnParticles(b.x + b.dir * 10, b.y - 10, '✨', 1);
+                    s.bites -= 0.5;
+                    if (s.bites <= 0) {
+                        const si = snacks.indexOf(s);
+                        if (si !== -1) snacks.splice(si, 1);
+                        spawnParticles(b.x, b.y - 22, '❤️', 2);
+                        b.state = 'IDLE';
+                    }
+                }
+                return;
+            } else if (sleeping) {
+                tx = L.x + (b.idx - 1) * 16;
+            } else {
+                const lv = L.x - (b.lastLeaderX ?? L.x);
+                b.lastLeaderX = L.x;
+                if (Math.abs(lv) > 0.3) b.trail = lv > 0 ? -1 : 1; // trail behind whichever way Maple is heading
+                tx = L.x + b.trail * 34 * (b.idx + 1);
+            }
+
+            if (L.state !== 'ENTER' && L.state !== 'LEAVE') tx = Math.max(30, Math.min(width - 30, tx));
+
+            const dx = tx - b.x;
+            if (Math.abs(dx) > 5) {
+                b.x += Math.max(-speed, Math.min(speed, dx * 0.08));
+                b.dir = dx > 0 ? 1 : -1;
+                b.state = 'WALK';
+            } else {
+                b.state = sleeping ? 'SLEEP' : 'IDLE';
+                if (!sleeping) b.dir = L.dir;
+                b.sniffOffset = Math.sin(b.animFrame * 0.7) * 1.4;
+                if (b.state === 'IDLE' && b.y >= railY - 1 && Math.random() < 0.006) b.vy = -4.5; // happy little hop
+            }
+        }
+
+        function updatePossums() {
+            possum = barnaby;
+            updatePossumAI();
+            manageCast();
+            for (const p of [bandit, mama]) {
+                if (!p.present) continue;
+                possum = p;
+                updatePossumAI();
+            }
+            possum = barnaby;
+            for (const k of babies) if (k.present) updateBaby(k);
+            manageRide();
+            updateChaos();
+            possum = barnaby;
+        }
+
+        function drawPossums() {
+            if (bandit.present) as(bandit, drawPossum);
+            if (mama.present) as(mama, drawPossum);
+            for (const k of babies) if (k.present && !k.riding) as(k, drawPossum);
+            as(barnaby, drawPossum);
+        }
+
+        function updateChaos() {
+            for (let i = chaos.later.length - 1; i >= 0; i--) {
+                const e = chaos.later[i];
+                if (--e.t <= 0) { chaos.later.splice(i, 1); e.fn(); }
+            }
+
+            const ad = [barnaby, bandit, mama].filter((p) => p.present && p.state !== 'ENTER' && p.state !== 'LEAVE');
+            if (ad.length < 2) return;
+
+            // Two possums munching the same snack -> shoving match
+            for (let i = 0; i < ad.length; i++) {
+                for (let j = i + 1; j < ad.length; j++) {
+                    const a = ad[i], c = ad[j];
+                    if (a.state === 'EAT' && c.state === 'EAT' && Math.abs(a.x - c.x) < 70 && Math.random() < 0.006) {
+                        const victim = Math.random() < 0.5 ? a : c;
+                        const bully = victim === a ? c : a;
+                        as(victim, triggerPlayDead);
+                        spawnParticles((a.x + c.x) / 2, railY - 30, '💢', 3);
+                        setActivityBadge('😤', `${bully.name} shoved ${victim.name} off the snack!`);
+                    }
+                }
+            }
+
+            if (--chaos.timer > 0) return;
+            chaos.timer = 420 + Math.random() * 780; // next bit of mischief in ~7-20 s
+
+            const roll = Math.random();
+            const free = ad.filter(isFree);
+            const kids = babies.filter((k) => k.present && !k.riding);
+            const bandFree = bandit.present && isFree(bandit);
+
+            // Joey heist: Bandit swipes Barnaby's baby (if the joey passenger is on)
+            if (roll < 0.12 && barnaby.hasJoey && bandFree) {
+                barnaby.hasJoey = false; bandit.hasJoey = true;
+                spawnParticles(bandit.x, bandit.y - 36, '💢', 3);
+                playSqueak();
+                setActivityBadge('😱', "Bandit swiped Barnaby's baby joey!");
+                later(900, () => {
+                    if (bandit.hasJoey) {
+                        bandit.hasJoey = false; barnaby.hasJoey = true;
+                        setActivityBadge('🥹', 'Bandit gave the joey back (this time)');
+                    }
+                });
+                return;
+            }
+
+            // Snack tossing
+            if (roll < 0.32 && bandFree) {
+                spawnSnackAt(bandit.x + bandit.dir * 34, railY - 50);
+                const s = snacks[snacks.length - 1];
+                s.vx = bandit.dir * 3.4; s.vy = -5.2;
+                playSniff();
+                spawnParticles(bandit.x, bandit.y - 36, '✨', 2);
+                setActivityBadge('🤪', 'Bandit is tossing snacks around!');
+                return;
+            }
+
+            // The joeys gang up on Bandit
+            if (roll < 0.47 && bandFree && kids.length) {
+                bandit.state = 'FLEE'; bandit.fleeFrom = kids[0]; bandit.stateTimer = 300;
+                kids.forEach((k) => { k.chaseT = 300; });
+                spawnParticles(bandit.x, bandit.y - 36, '💦', 2);
+                playSqueak();
+                setActivityBadge('🐭', 'The joeys are chasing Bandit!');
+                return;
+            }
+
+            // A joey faints from sheer excitement
+            if (roll < 0.57 && kids.length) {
+                const k = kids[Math.floor(Math.random() * kids.length)];
+                as(k, triggerPlayDead);
+                setActivityBadge('💫', `${k.name} fainted from sheer excitement!`);
+                return;
+            }
+
+            if (free.length < 2) { chaos.timer = 120; return; }
+
+            // Pick any two free grown-ups to squabble
+            const pool = free.slice().sort(() => Math.random() - 0.5);
+            const A = pool[0], B = pool[1];
+
+            if (roll < 0.8 && Math.abs(A.x - B.x) < 350) {
+                // Standoff
+                A.dir = B.x > A.x ? 1 : -1; B.dir = -A.dir;
+                A.state = B.state = 'HISS';
+                A.stateTimer = B.stateTimer = 150;
+                playSniff();
+                setActivityBadge('😾', `${A.name} and ${B.name} are having a standoff...`);
+                later(140, () => {
+                    if (A.state === 'HISS' && B.state === 'HISS' && Math.random() < 0.6) {
+                        const v = Math.random() < 0.5 ? A : B;
+                        as(v, triggerPlayDead);
+                        setActivityBadge('💀', `${v.name} fainted dramatically!`);
+                    }
+                });
+            } else {
+                // Chase
+                const chaser = Math.random() < 0.5 ? A : B;
+                const prey = chaser === A ? B : A;
+                chaser.state = 'CHASE_POSSUM'; chaser.chaseTarget = prey; chaser.stateTimer = 300;
+                prey.state = 'FLEE'; prey.fleeFrom = chaser; prey.stateTimer = 280;
+                spawnParticles(chaser.x, chaser.y - 34, '💢', 2);
+                playSqueak();
+                setActivityBadge('🏃', `${chaser.name} is chasing ${prey.name}!`);
+            }
+        }
+
+        function updatePossumAI() {
+            possum.animFrame += 0.14;
+            if (Math.random() < 0.015) possum.earTwitch = 1;
+            if (possum.earTwitch > 0) possum.earTwitch = Math.max(0, possum.earTwitch - 0.08);
+
+            if (trashCan.cooldown > 0 && possum === barnaby) trashCan.cooldown--; // once per frame, not once per possum
+
+            // 1. Hanging Upside Down from Overhead Wire
+            if (possum.state === 'HANG') {
+                possum.stateTimer--;
+                const anchorY = getWireYAt(possum.hangX);
+                possum.tailAngle = Math.sin(possum.animFrame * 0.42) * 0.18;
+                possum.x = possum.hangX + Math.sin(possum.animFrame * 0.42) * 14;
+                possum.y = anchorY + possum.hangLength;
+
+                if (possum.stateTimer <= 0) {
+                    // Either climb onto wire or drop gracefully to porch rail
+                    if (Math.random() < 0.45) {
+                        possum.onWire = true;
+                        possum.y = anchorY;
+                        possum.state = 'WALK';
+                        possum.stateTimer = 220;
+                        setActivityBadge(' tightrope', 'Balancing on the overhead wire');
+                        setActivityBadge('🌙', 'Walking the moonlit wire');
+                    } else {
+                        possum.onWire = false;
+                        possum.vy = 1;
+                        possum.state = 'IDLE';
+                        possum.stateTimer = 80;
+                        setActivityBadge('🦝', 'Dropped back to the porch rail');
+                    }
+                }
+                return;
+            }
+
+            // 2. Vertical Positioning & Gravity
+            const targetFloorY = possum.onWire ? getWireYAt(possum.x) : railY;
+            if (possum.onWire) {
+                possum.y = targetFloorY;
+                possum.vy = 0;
+            } else if (possum.y < railY || possum.vy < 0) {
+                possum.vy += 0.52;
+                possum.y += possum.vy;
+                if (possum.y >= railY) {
+                    possum.y = railY;
+                    possum.vy = 0;
+                }
+            }
+
+            // 3. Seek any spilled snacks on the porch rail
+            if (!possum.onWire && ['IDLE', 'WALK', 'SNIFF', 'GROOM', 'CHASE_FIREFLY'].includes(possum.state) && snacks.length > 0) {
+                const snack = snacks[0];
+                possum.targetSnack = snack;
+                const dx = snack.x - possum.x;
+                if (Math.abs(dx) > 20) {
+                    possum.state = 'WALK';
+                    possum.dir = dx > 0 ? 1 : -1;
+                    possum.x += possum.dir * 2.2;
+                    setActivityBadge(snack.emoji, `Sniffing out ${snack.name}...`);
+                    return;
+                } else {
+                    possum.state = 'EAT';
+                    possum.stateTimer = 90;
+                    setActivityBadge('😋', `Munching ${snack.name}`);
+                    return;
+                }
+            }
+
+            // 4. State Machine Execution
+            possum.stateTimer--;
+
+            switch (possum.state) {
+                case 'IDLE':
+                    possum.sniffOffset = Math.sin(possum.animFrame * 0.7) * 1.4;
+                    if (possum.stateTimer <= 0) chooseNextScreensaverBehavior();
+                    break;
+
+                case 'SNIFF':
+                    possum.sniffOffset = Math.sin(possum.animFrame * 2.5) * 3.0;
+                    if (possum.stateTimer === 45) playSniff();
+                    if (possum.stateTimer <= 0) chooseNextScreensaverBehavior();
+                    break;
+
+                case 'GROOM':
+                    if (possum.stateTimer <= 0) chooseNextScreensaverBehavior();
+                    break;
+
+                case 'WALK':
+                    const speed = possum.onWire ? 1.25 : 1.55;
+                    possum.x += possum.dir * speed;
+
+                    if (possum.x < 55) {
+                        possum.x = 55;
+                        possum.dir = 1;
+                    } else if (possum.x > width - 55) {
+                        possum.x = width - 55;
+                        possum.dir = -1;
+                    }
+
+                    if (possum.stateTimer <= 0) {
+                        if (possum.onWire && Math.random() < 0.45) {
+                            // Drop down from wire
+                            possum.onWire = false;
+                            possum.vy = 1;
+                            possum.state = 'IDLE';
+                            possum.stateTimer = 70;
+                            setActivityBadge('🦝', 'Hopped down to the porch');
+                        } else {
+                            chooseNextScreensaverBehavior();
+                        }
+                    }
+                    break;
+
+                case 'CHASE_FIREFLY':
+                    if (!possum.targetFirefly) {
+                        possum.targetFirefly = fireflies[Math.floor(Math.random() * fireflies.length)];
+                    }
+                    if (possum.targetFirefly) {
+                        const dx = possum.targetFirefly.x - possum.x;
+                        possum.dir = dx >= 0 ? 1 : -1;
+                        if (Math.abs(dx) > 18) {
+                            possum.x += possum.dir * 2.1;
+                        } else if (possum.y >= railY - 2 && Math.random() < 0.06) {
+                            // Little playful hop toward the glowing firefly!
+                            possum.vy = -5.5;
+                            spawnParticles(possum.x, possum.y - 35, '✨', 1);
+                        }
+                    }
+                    if (possum.stateTimer <= 0) {
+                        possum.targetFirefly = null;
+                        chooseNextScreensaverBehavior();
+                    }
+                    break;
+
+                case 'RUMMAGE':
+                    // Walk over to the corner porch trash can and tip it over!
+                    const targetX = trashCan.x + 34;
+                    const dx = targetX - possum.x;
+                    if (Math.abs(dx) > 10) {
+                        possum.dir = dx > 0 ? 1 : -1;
+                        possum.x += possum.dir * 1.9;
+                    } else {
+                        possum.dir = -1;
+                        if (!trashCan.tipped) {
+                            trashCan.tipped = true;
+                            trashCan.cooldown = 900;
+                            playSniff();
+                            spawnSnackAt(trashCan.x + 48, railY - 16);
+                            setActivityBadge('🗑️', 'Found midnight trash treasure!');
+                            if (possum === bandit) {
+                                // Bandit doesn't do tidy: the whole can goes everywhere
+                                spawnSnackAt(trashCan.x + 70, railY - 40);
+                                spawnSnackAt(trashCan.x + 30, railY - 60);
+                                spawnParticles(trashCan.x + 30, railY - 40, '💥', 2);
+                                setActivityBadge('🗑️', 'Bandit made an absolute mess of the trash can!', true);
+                            }
+                        }
+                        possum.state = 'IDLE';
+                        possum.stateTimer = 40;
+                    }
+                    break;
+
+                case 'EAT':
+                    if (possum.stateTimer % 25 === 0 && possum.targetSnack) {
+                        playMunch();
+                        spawnParticles(possum.x + possum.dir * 20, possum.y - 12, '✨', 2);
+                        possum.targetSnack.bites--;
+                        if (possum.targetSnack.bites <= 0) {
+                            const idx = snacks.indexOf(possum.targetSnack);
+                            if (idx !== -1) snacks.splice(idx, 1);
+                            possum.targetSnack = null;
+                            spawnParticles(possum.x, possum.y - 32, '❤️', 3);
+                            playSqueak();
+                            possum.state = 'IDLE';
+                            possum.stateTimer = 85;
+                            setActivityBadge('😊', 'Content & full of snacks');
+                        }
+                    }
+                    if (possum.stateTimer <= 0) {
+                        possum.state = 'IDLE';
+                        possum.stateTimer = 60;
+                    }
+                    break;
+
+                case 'ENTER': {
+                    const edx = possum.enterX - possum.x;
+                    possum.dir = edx >= 0 ? 1 : -1;
+                    possum.x += possum.dir * 1.9;
+                    if (Math.abs(edx) < 12) { possum.state = 'SNIFF'; possum.stateTimer = 100; }
+                    break;
+                }
+
+                case 'LEAVE':
+                    possum.x += possum.dir * 2.0;
+                    if (possum.x < -90 || possum.x > width + 90) {
+                        possum.present = false;
+                        possum.state = 'IDLE';
+                    }
+                    break;
+
+                case 'CHASE_POSSUM': {
+                    const prey = possum.chaseTarget;
+                    if (!prey || (prey !== barnaby && !prey.present)) { possum.state = 'IDLE'; possum.stateTimer = 40; break; }
+                    const cdx = prey.x - possum.x;
+                    possum.dir = cdx >= 0 ? 1 : -1;
+                    possum.x = Math.max(40, Math.min(width - 40, possum.x + possum.dir * 2.8));
+                    if (Math.abs(cdx) < 28) {
+                        as(prey, triggerPlayDead);
+                        spawnParticles(prey.x, prey.y - 34, '💢', 3);
+                        setActivityBadge('😈', `${possum.name} pounced on ${prey.name}!`, true);
+                        possum.state = 'GROOM';
+                        possum.stateTimer = 120;
+                    } else if (possum.stateTimer <= 0) {
+                        possum.state = 'IDLE';
+                        possum.stateTimer = 60;
+                    }
+                    break;
+                }
+
+                case 'FLEE': {
+                    const f = possum.fleeFrom;
+                    const away = f && f.x <= possum.x ? 1 : -1;
+                    possum.dir = away;
+                    possum.x += away * 2.5;
+                    if (possum.x < 55 || possum.x > width - 55) {
+                        // Cornered: leap back over the chaser
+                        possum.vy = -6.5;
+                        possum.x = Math.max(55, Math.min(width - 55, possum.x - away * 110));
+                        spawnParticles(possum.x, possum.y - 34, '💦', 2);
+                    }
+                    if (possum.stateTimer <= 0) { possum.state = 'IDLE'; possum.stateTimer = 40; }
+                    break;
+                }
+
+                case 'HISS':
+                    possum.sniffOffset = Math.sin(possum.animFrame * 3) * 3;
+                    if (possum.stateTimer % 40 === 0) spawnParticles(possum.x + possum.dir * 24, possum.y - 40, '💢', 1);
+                    if (possum.stateTimer <= 0) chooseNextScreensaverBehavior();
+                    break;
+
+                case 'SLEEP':
+                    if (possum.stateTimer % 55 === 0) {
+                        spawnParticles(possum.x + 12, possum.y - 24, '💤', 1);
+                    }
+                    if (possum.stateTimer <= 0) {
+                        possum.state = 'IDLE';
+                        possum.stateTimer = 90;
+                        setActivityBadge('🥱', 'Stretching after a cozy nap');
+                    }
+                    break;
+
+                case 'PLAY_DEAD':
+                    if (possum.stateTimer < 80 && !possum.peekEye) {
+                        possum.peekEye = true;
+                        setActivityBadge('👁️', 'Peeking one eye open...');
+                    }
+                    if (possum.stateTimer <= 0) {
+                        possum.state = 'IDLE';
+                        possum.stateTimer = 80;
+                        possum.peekEye = false;
+                        possum.vy = -3.2;
+                        setActivityBadge('🦝', 'Coast is clear!');
+                    }
+                    break;
+            }
+        }
+
+        function chooseNextScreensaverBehavior() {
+            // Reset trash can upright quietly if it's been tipped for a while
+            if (trashCan.tipped && trashCan.cooldown <= 0 && snacks.length === 0) {
+                trashCan.tipped = false;
+            }
+
+            // Possums are nocturnal: by day Barnaby dozes much more
+            if (!possum.onWire && getDaylight() > 0.6 && Math.random() < 0.4) {
+                possum.state = 'SLEEP';
+                possum.stateTimer = 340 + Math.random() * 200;
+                setActivityBadge('😴', 'Dozing through the daytime...');
+                return;
+            }
+
+            const roll = Math.random();
+            if (possum.onWire) {
+                if (roll < 0.55) {
+                    possum.state = 'WALK';
+                    if (Math.random() < 0.5) possum.dir *= -1;
+                    possum.stateTimer = 140 + Math.random() * 140;
+                    setActivityBadge('🌙', 'Strolling the moonlit wire');
+                } else {
+                    triggerTailHang();
+                }
+                return;
+            }
+
+            if (roll < 0.30) {
+                possum.state = 'WALK';
+                if (Math.random() < 0.45) possum.dir *= -1;
+                possum.stateTimer = 130 + Math.random() * 180;
+                setActivityBadge('🐾', 'Midnight porch patrol...');
+            } else if (roll < 0.46) {
+                possum.state = 'SNIFF';
+                possum.stateTimer = 80 + Math.random() * 60;
+                setActivityBadge('👃', 'Sniffing the night breeze...');
+            } else if (roll < 0.60) {
+                possum.state = 'GROOM';
+                possum.stateTimer = 90 + Math.random() * 60;
+                setActivityBadge('🧼', 'Grooming whiskers...');
+            } else if (roll < 0.74) {
+                possum.state = 'CHASE_FIREFLY';
+                possum.targetFirefly = null;
+                possum.stateTimer = 180 + Math.random() * 120;
+                setActivityBadge('✨', 'Chasing glowing fireflies!');
+            } else if (roll < 0.85) {
+                triggerTailHang();
+            } else if (roll < 0.93 && !trashCan.tipped && trashCan.cooldown <= 0) {
+                possum.state = 'RUMMAGE';
+                possum.stateTimer = 260;
+                setActivityBadge('🗑️', 'Checking the porch trash can...');
+            } else {
+                possum.state = 'SLEEP';
+                possum.stateTimer = 340 + Math.random() * 200;
+                setActivityBadge('💤', 'Curled up & snoozing...');
+            }
+        }
+
+        // ==========================================
+        // 6. POSSUM VECTOR RENDERER
+        // ==========================================
+        function drawPossum() {
+            ctx.save();
+            // Bandit is a scruffy brown possum
+            if (possum.tint) ctx.filter = possum.tint;
+
+            // Prehensile Tail Tether when Hanging from Overhead Wire
+            if (possum.state === 'HANG') {
+                const anchorY = getWireYAt(possum.hangX);
+                ctx.save();
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 7.5;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(possum.hangX, anchorY);
+                ctx.quadraticCurveTo(
+                    possum.hangX + (possum.x - possum.hangX) * 0.5,
+                    anchorY + possum.hangLength * 0.5,
+                    possum.x,
+                    possum.y - 18
+                );
+                ctx.stroke();
+
+                ctx.strokeStyle = '#f9a8d4';
+                ctx.lineWidth = 4.2;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            ctx.translate(possum.x, possum.y);
+            if (possum.scale) ctx.scale(possum.scale, possum.scale);
+
+            // Soft Shadow on Porch Rail
+            if (possum.state !== 'HANG' && !possum.onWire) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+                ctx.beginPath();
+                ctx.ellipse(0, 1, 30, 5.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.scale(possum.dir, 1);
+
+            if (possum.state === 'PLAY_DEAD') {
+                ctx.translate(0, -16);
+                ctx.rotate(Math.PI);
+            } else if (possum.state === 'HANG') {
+                ctx.rotate(Math.PI * 0.85);
+            }
+
+            const walkBob = possum.state === 'WALK' ? Math.abs(Math.sin(possum.animFrame * 1.8)) * 3.2 : 0;
+            const breathe = Math.sin(possum.animFrame * 0.45) * 1.1;
+
+            // --- 1. PREHENSILE PINK TAIL ---
+            if (possum.state !== 'HANG') {
+                ctx.save();
+                const tailWave = possum.state === 'PLAY_DEAD'
+                    ? 0.2
+                    : Math.sin(possum.animFrame * 0.6) * 0.22 + possum.tailAngle;
+                ctx.translate(-24, -16 - walkBob);
+                ctx.rotate(tailWave);
+
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 7.5;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.bezierCurveTo(-22, -4, -36, -24, -22, -34);
+                ctx.stroke();
+
+                ctx.strokeStyle = '#f9a8d4';
+                ctx.lineWidth = 4.5;
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // --- 2. BACK LEGS & PINK PAWS ---
+            const legSwing = possum.state === 'WALK' ? Math.sin(possum.animFrame * 1.8) * 5.5 : 0;
+            drawPaw(-14 - legSwing, -2.5, '#fda4af');
+            drawPaw(12 + legSwing, -2.5, '#fda4af');
+
+            // --- 3. SCRUFFY GREY BODY ---
+            ctx.save();
+            ctx.translate(0, -18 - walkBob);
+
+            if (possum.state === 'SLEEP') {
+                ctx.fillStyle = '#64748b';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.4;
+                ctx.beginPath();
+                ctx.ellipse(0, 4, 27, 17, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#cbd5e1';
+                ctx.beginPath();
+                ctx.ellipse(4, 7, 18, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                ctx.fillStyle = '#64748b';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.4;
+                ctx.beginPath();
+                ctx.ellipse(-2, 0, 26, 16 + breathe * 0.4, -0.05, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Silver-white belly highlight
+                ctx.fillStyle = '#e2e8f0';
+                ctx.beginPath();
+                ctx.ellipse(0, 6, 20, 8, 0, 0, Math.PI);
+                ctx.fill();
+
+                // Scruffy fur tufts
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-14, -14);
+                ctx.lineTo(-10, -18);
+                ctx.lineTo(-5, -14);
+                ctx.lineTo(0, -18);
+                ctx.lineTo(5, -14);
+                ctx.stroke();
+            }
+
+            if (possum.hasJoey && possum.state !== 'SLEEP') {
+                drawBabyJoey(-4, -16);
+            }
+
+            ctx.restore();
+
+            // --- 4. FRONT PAWS ---
+            if (possum.state === 'GROOM') {
+                const rub = Math.sin(possum.animFrame * 2.5) * 3;
+                drawPaw(22, -22 + rub, '#fda4af');
+            } else if (possum.state !== 'SLEEP') {
+                drawPaw(14 - legSwing, -2.5, '#fda4af');
+            }
+
+            // --- 5. CONE-SHAPED WHITE HEAD & FACE ---
+            ctx.save();
+            const headY = possum.state === 'SLEEP' ? -12 : -22 - walkBob + possum.sniffOffset * 0.4;
+            const headX = possum.state === 'SLEEP' ? 12 : 18;
+            ctx.translate(headX, headY);
+
+            if (possum.state === 'SNIFF') {
+                ctx.rotate(-0.12 + Math.sin(possum.animFrame * 2.6) * 0.08);
+            }
+
+            drawEar(-6, -12, -0.25);
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            ctx.moveTo(-12, -11);
+            ctx.quadraticCurveTo(4, -12, 23, 2);
+            ctx.quadraticCurveTo(4, 13, -12, 9);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Grey forehead V-stripe
+            ctx.fillStyle = '#64748b';
+            ctx.beginPath();
+            ctx.moveTo(-12, -10);
+            ctx.lineTo(1, -3);
+            ctx.lineTo(-11, 2);
+            ctx.closePath();
+            ctx.fill();
+
+            drawEar(-11, -9, -0.45 + possum.earTwitch * 0.25);
+
+            // Pink Boopable Nose
+            ctx.fillStyle = '#f472b6';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.arc(23, 2, 3.6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Whiskers
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.moveTo(16, 4); ctx.lineTo(24, 8);
+            ctx.moveTo(15, 6); ctx.lineTo(21, 11);
+            ctx.stroke();
+
+            // Eyes & Expressions
+            if (possum.state === 'PLAY_DEAD') {
+                if (possum.peekEye) {
+                    ctx.fillStyle = '#0f172a';
+                    ctx.beginPath();
+                    ctx.arc(4, -2, 3.6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(5, -3, 1.3, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.lineWidth = 2.2;
+                    ctx.beginPath();
+                    ctx.moveTo(1, -5); ctx.lineTo(7, 1);
+                    ctx.moveTo(7, -5); ctx.lineTo(1, 1);
+                    ctx.stroke();
+                }
+                ctx.fillStyle = '#fb7185';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.ellipse(15, 7, 4.5, 2.5, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            } else if (possum.state === 'SLEEP') {
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(4, -2, 3.5, 0.1 * Math.PI, 0.9 * Math.PI);
+                ctx.stroke();
+            } else if (possum.state === 'HISS') {
+                // Angry brow, fierce eye, open mouth with teeth
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(4, -2, 3.4, 0, TAU);
+                ctx.fill();
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.moveTo(-1, -8); ctx.lineTo(8, -4);
+                ctx.stroke();
+                ctx.fillStyle = '#fb7185';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.ellipse(15, 7, 5.5, 3.5, 0.2, 0, TAU);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(12, 4, 2, 3);
+                ctx.fillRect(17, 5, 2, 3);
+            } else if (possum.state === 'EAT') {
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.moveTo(1, -1); ctx.lineTo(4, -4); ctx.lineTo(7, -1);
+                ctx.stroke();
+
+                if (Math.sin(possum.animFrame * 3) > 0) {
+                    ctx.fillStyle = '#fb7185';
+                    ctx.beginPath();
+                    ctx.arc(14, 6, 3, 0, Math.PI);
+                    ctx.fill();
+                }
+            } else {
+                ctx.fillStyle = '#0f172a';
+                ctx.beginPath();
+                ctx.arc(4, -2, 3.8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(5.2, -3.2, 1.4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = 'rgba(244, 114, 182, 0.45)';
+                ctx.beginPath();
+                ctx.ellipse(7, 3.5, 3.2, 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+            ctx.restore();
+        }
+
+        function drawEar(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.ellipse(0, -4, 5.5, 7.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#f9a8d4';
+            ctx.beginPath();
+            ctx.ellipse(0, -5, 2.8, 4.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawPaw(x, y, color) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 4.5, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function drawBabyJoey(x, y) {
+            ctx.save();
+            ctx.translate(x, y + Math.sin(possum.animFrame * 0.9) * 1);
+            ctx.fillStyle = '#94a3b8';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, 10, 7, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#f8fafc';
+            ctx.beginPath();
+            ctx.arc(7, -1, 5.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath();
+            ctx.arc(4, -6, 2.5, 0, Math.PI * 2);
+            ctx.arc(8, -2, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#f472b6';
+            ctx.beginPath();
+            ctx.arc(12, -1, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function updateAndDrawSnacks() {
+            for (const s of snacks) {
+                if (s.y < railY - 12 || s.vy < 0) {
+                    s.vy += 0.45;
+                    s.y += s.vy;
+                    s.x += s.vx;
+                    if (s.y >= railY - 12) {
+                        s.y = railY - 12;
+                        s.vy = -s.vy * 0.3;
+                        s.vx *= 0.65;
+                        if (Math.abs(s.vy) < 0.7) s.vy = 0;
+                    }
+                } else {
+                    s.x += s.vx;
+                    s.vx *= 0.85;
+                }
+
+                ctx.save();
+                ctx.font = '24px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(s.emoji, s.x, s.y);
+                ctx.restore();
+            }
+        }
+
+        function updateAndDrawParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                p.alpha = Math.max(0, p.life / 60);
+
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.font = `${Math.round(17 * p.scale)}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText(p.symbol, p.x, p.y);
+                ctx.restore();
+
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        // ==========================================
+        // 7. GENTLE INTERACTIVITY (PET, STARTLE, TRASH)
+        // ==========================================
+        let lastClickTime = 0;
+
+        function handleCanvasInteract(px, py) {
+            wakeHUD();
+            const now = Date.now();
+
+            // Check if clicked on corner trash can
+            if (Math.hypot(px - trashCan.x, py - (railY - 20)) < 36) {
+                trashCan.tipped = !trashCan.tipped;
+                trashCan.cooldown = 900;
+                playSniff();
+                if (trashCan.tipped) {
+                    spawnSnackAt(trashCan.x + 48, railY - 16);
+                    setActivityBadge('🗑️', 'Trash can tipped! Midnight snacks!');
+                }
+                lastClickTime = now;
+                return;
+            }
+
+            // Check if clicked on Barnaby to pet him
+            if (Math.hypot(px - possum.x, py - (possum.y - 18)) < 46) {
+                if (possum.state === 'PLAY_DEAD') {
+                    possum.state = 'IDLE';
+                    possum.stateTimer = 80;
+                    possum.peekEye = false;
+                }
+                playSqueak();
+                spawnParticles(possum.x, possum.y - 34, '❤️', 4);
+                setActivityBadge('🥰', 'Happy squeaks! Loves midnight scritches');
+                lastClickTime = now;
+                return;
+            }
+
+            // Double-click anywhere startles Barnaby into playing dead
+            if (now - lastClickTime < 280) {
+                triggerPlayDead();
+            }
+            lastClickTime = now;
+        }
+
+        canvas.addEventListener('mousedown', (e) => handleCanvasInteract(e.clientX, e.clientY));
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                handleCanvasInteract(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        window.addEventListener('mousemove', wakeHUD);
+
+        // ==========================================
+        // 8. RESIZE & MAIN SCREENSAVER LOOP
+        // ==========================================
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            canvas.width = Math.round(width * dpr);
+            canvas.height = Math.round(height * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            railY = height - 64;
+            wireY = Math.max(115, height * 0.23);
+
+            if (!possum.onWire && possum.state !== 'HANG') {
+                possum.y = railY;
+            }
+            if (possum.x > width - 50) possum.x = width - 50;
+            initEnvironmentEntities();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        let frameTick = 0;
+        function animateScreensaver() {
+            frameTick++;
+            if (IS_SS) {
+                // Whole scene creeps in a slow orbit (scaled up 3% so the edges never show black) —
+                // shifts the fixed rail, wire, trees and trash can by up to ~±2% of the screen.
+                const m = secs();
+                const dx = width * 0.02 * Math.sin(TAU * m / 240);
+                const dy = height * 0.02 * Math.cos(TAU * m / 330);
+                canvas.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(1.045)`;
+            }
+            ctx.clearRect(0, 0, width, height);
+
+            drawBackgroundScene(frameTick);
+            updateAndDrawFireflies(frameTick);
+            updateAndDrawFalling(frameTick, getDaylight());
+            updateAndDrawSnacks();
+            updatePossums();
+            drawPossums();
+            updateAndDrawParticles();
+
+            requestAnimationFrame(animateScreensaver);
+        }
+
+        window.onload = function () {
+            resizeCanvas();
+            wakeHUD();
+
+            // Settings passed in by the Windows screensaver host (?ss=1&theme=..&clock=..&sound=..&joey=..)
+            const qs = new URLSearchParams(location.search);
+            if (qs.get('ss') === '1') document.documentElement.classList.add('ss');
+            if (qs.has('theme')) setSceneTheme(qs.get('theme'));
+            if (qs.get('clock') === '0') toggleClockOverlay();
+            if (qs.get('sound') === '1') toggleSound();
+            if (qs.get('joey') === '1') toggleJoey();
+
+            // Fade out the initial launch hint toast after 4.5 seconds
+            setTimeout(() => {
+                const toast = document.getElementById('launch-toast');
+                if (toast) toast.style.opacity = '0';
+            }, 4500);
+
+            animateScreensaver();
+        };
+    </script>
+</body>
+</html>
