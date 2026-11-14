@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. Full notes for each release live in
 [`docs/release-notes/`](docs/release-notes/) and on the [Releases](https://github.com/TPandaGames/possum-operational-screensaver/releases) page.
 
+## [1.2.0] - 2026-11-13
+
+Live desktop wallpaper. See the [full release notes](docs/release-notes/v1.2.0.md) or download
+[PocketPossum.scr](https://github.com/TPandaGames/possum-live-wallpaper/releases/download/v1.2.0/PocketPossum.scr).
+This project now lives at `possum-live-wallpaper`; releases 1.0.0 and 1.1.0 remain on the original
+[possum-operational-screensaver](https://github.com/TPandaGames/possum-operational-screensaver/releases) repository.
+
+### Added
+
+- **Live desktop wallpaper** mode: the scene runs behind your desktop icons on every monitor (tray menu or
+  Settings > Startup), and pauses while a full-screen app or game is in front
+
 ## [1.1.0] - 2026-11-13
 
 Weather sync. See the [full release notes](docs/release-notes/v1.1.0.md) or download
@@ -31,5 +43,6 @@ First release. See the [full release notes](docs/release-notes/v1.0.0.md) or dow
 - Burn-in protection: wandering clock, travelling moon, drifting scene
 - Barnaby, Bandit and the Maple family (Pip, Nibs and Dot), with random chases, standoffs, snack theft and more
 
+[1.2.0]: https://github.com/TPandaGames/possum-live-wallpaper/releases/tag/v1.2.0
 [1.1.0]: https://github.com/TPandaGames/possum-operational-screensaver/releases/tag/v1.1.0
 [1.0.0]: https://github.com/TPandaGames/possum-operational-screensaver/releases/tag/v1.0.0

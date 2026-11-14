@@ -8,11 +8,11 @@
 ; Override the version with:  iscc installer\PocketPossum.iss /DAppVersion=1.2.3
 
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #define AppVersion "1.2.0"
 #endif
 #define AppName      "Possum Operational ScreenSaver (POSS)"
 #define AppPublisher "TPandaGames"
-#define AppUrl       "https://github.com/TPandaGames/possum-operational-screensaver"
+#define AppUrl       "https://github.com/TPandaGames/possum-live-wallpaper"
 
 [Setup]
 ; Unique id for this app (do not change between releases, it is how upgrades are recognised)

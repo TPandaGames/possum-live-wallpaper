@@ -3,9 +3,9 @@
 A Windows screensaver starring **Barnaby the possum**, a moonlit porch, and a cast of nocturnal troublemakers.
 (Inside the app and its files it goes by the name *Pocket Possum*.)
 
-**[Download PocketPossum.scr](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest/download/PocketPossum.scr)**
-(v1.1.0) · [Zip, if your browser blocks `.scr` files](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest/download/PocketPossum-win-x64.zip)
-· [Release notes](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest)
+**[Download PocketPossum.scr](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum.scr)**
+(v1.2.0) · [Zip, if your browser blocks `.scr` files](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum-win-x64.zip)
+· [Release notes](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest)
 It's a real `.scr` file: install it from Windows' Screen Saver Settings, or run it in the tray and let it start by itself
 after a few idle minutes.
 
@@ -46,9 +46,9 @@ after a few idle minutes.
 
 ## Install
 
-1. Download [`PocketPossum.scr`](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest/download/PocketPossum.scr)
-   from the [latest release](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest)
-   (or the [zip](https://github.com/TPandaGames/possum-operational-screensaver/releases/latest/download/PocketPossum-win-x64.zip)
+1. Download [`PocketPossum.scr`](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum.scr)
+   from the [latest release](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest)
+   (or the [zip](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum-win-x64.zip)
    if your browser blocks `.scr` files), or build it yourself, see below.
 2. Right-click it and choose **Install**. Windows opens Screen Saver Settings with it selected.
    Click **Settings...** to configure it. To install for all users, copy it to `C:\Windows\System32` first.

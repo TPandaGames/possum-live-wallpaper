@@ -15,7 +15,7 @@ sealed class ConfigForm : Form
     static HttpClient CreateHttp()
     {
         var c = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-        c.DefaultRequestHeaders.UserAgent.ParseAdd("PocketPossum/1.0 (+https://github.com/TPandaGames/possum-operational-screensaver)");
+        c.DefaultRequestHeaders.UserAgent.ParseAdd("PocketPossum/1.0 (+https://github.com/TPandaGames/possum-live-wallpaper)");
         return c;
     }
 
