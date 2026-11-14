@@ -181,13 +181,15 @@ sealed class ConfigForm : Form
         };
         auto.CheckedChanged += (_, _) => wait.Enabled = auto.Checked;
         var startup = new CheckBox { Text = "Run in the system tray when Windows starts", Left = 16, Top = 62, AutoSize = true, Checked = Startup.IsEnabled() };
+        var wallpaper = new CheckBox { Text = "Use as live desktop wallpaper (while in the tray)", Left = 16, Top = 92, AutoSize = true, Checked = s.LiveWallpaper };
         var startupNote = new Label
         {
+            Top = 132,
             Text = "Idle start works while Pocket Possum is running in the system tray. " +
                    "Move the mouse or press any key to exit the screensaver.",
-            Left = 16, Top = 104, Width = 350, Height = 50, ForeColor = SystemColors.GrayText,
+            Left = 16, Width = 350, Height = 50, ForeColor = SystemColors.GrayText,
         };
-        tabStartup.Controls.AddRange(new Control[] { auto, wait, new Label { Text = "minutes", Left = 312, Top = 23, AutoSize = true }, startup, startupNote });
+        tabStartup.Controls.AddRange(new Control[] { auto, wait, new Label { Text = "minutes", Left = 312, Top = 23, AutoSize = true }, startup, wallpaper, startupNote });
 
         // ---------------- Buttons ----------------
         var ok = new Button { Text = "OK", Left = 232, Top = 430, Width = 76 };
@@ -223,6 +225,7 @@ sealed class ConfigForm : Form
             }
             s.TempUnit = unit.SelectedIndex switch { 1 => "c", 2 => "f", _ => "auto" };
             s.AutoStart = auto.Checked;
+            s.LiveWallpaper = wallpaper.Checked;
             s.IdleMinutes = (int)wait.Value;
             try { s.Save(); Startup.Set(startup.Checked); }
             catch (Exception ex) { MessageBox.Show(this, ex.Message, "Could not save settings", MessageBoxButtons.OK, MessageBoxIcon.Warning); }

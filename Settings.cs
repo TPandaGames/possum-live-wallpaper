@@ -17,6 +17,8 @@ public sealed class Settings
     public bool AutoStart { get; set; } = true;    // tray app launches the saver when idle
     public int IdleMinutes { get; set; } = 10;      // minutes of no keyboard/mouse activity
 
+    public bool LiveWallpaper { get; set; } = false; // tray app also shows the scene as the desktop background
+
     // Weather sync (opt-in): the page fetches current conditions for this location from open-meteo.com
     public bool WeatherSync { get; set; } = false;
     public double? WeatherLat { get; set; }

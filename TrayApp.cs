@@ -18,6 +18,14 @@ sealed class TrayApp : ApplicationContext
 
         var menu = new ContextMenuStrip();
         menu.Items.Add("Start screensaver now", null, (_, _) => Launch());
+        _wallpaperItem = new ToolStripMenuItem("Live wallpaper") { CheckOnClick = false };
+        _wallpaperItem.Click += (_, _) =>
+        {
+            _settings.LiveWallpaper = !_settings.LiveWallpaper;
+            try { _settings.Save(); } catch (Exception ex) { Log.Write("save failed: " + ex.Message); }
+            ApplyWallpaper();
+        };
+        menu.Items.Add(_wallpaperItem);
         menu.Items.Add("Settings…", null, (_, _) => ShowSettings());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => ExitThread());
@@ -33,7 +41,29 @@ sealed class TrayApp : ApplicationContext
 
         _timer.Tick += (_, _) => Tick();
         _timer.Start();
+        ApplyWallpaper();
         Log.Write("tray started");
+    }
+
+    readonly ToolStripMenuItem _wallpaperItem;
+    Process? _wallpaper;
+
+    /// <summary>Starts or stops the wallpaper process to match the setting, and restarts it to pick up new settings.</summary>
+    void ApplyWallpaper()
+    {
+        _wallpaperItem.Checked = _settings.LiveWallpaper;
+        try
+        {
+            if (_wallpaper is { HasExited: false }) { _wallpaper.Kill(); _wallpaper.WaitForExit(3000); }
+            _wallpaper = null;
+            if (_settings.LiveWallpaper)
+            {
+                _wallpaper = Process.Start(new ProcessStartInfo(Environment.ProcessPath!, "/b") { UseShellExecute = false });
+                Log.Write("tray started live wallpaper");
+            }
+            else DesktopHost.RefreshWallpaper();
+        }
+        catch (Exception ex) { Log.Write("wallpaper start failed: " + ex.Message); }
     }
 
     void UpdateTooltip()
@@ -70,7 +100,7 @@ sealed class TrayApp : ApplicationContext
     {
         if (_config is { IsDisposed: false }) { _config.Activate(); return; }
         _config = new ConfigForm(_settings);
-        _config.FormClosed += (_, _) => UpdateTooltip();
+        _config.FormClosed += (_, _) => { UpdateTooltip(); ApplyWallpaper(); };
         _config.Show();
     }
 
@@ -79,6 +109,7 @@ sealed class TrayApp : ApplicationContext
         if (disposing)
         {
             _timer.Stop();
+            try { if (_wallpaper is { HasExited: false }) _wallpaper.Kill(); } catch { /* already gone */ }
             _icon.Visible = false;
             _icon.Dispose();
         }

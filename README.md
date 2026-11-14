@@ -97,6 +97,15 @@ you type to its geocoding service). Nothing else is sent and no account or API k
 Weather data by [Open-Meteo.com](https://open-meteo.com/) under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
+## Live desktop wallpaper
+
+The same scene can run as your **desktop background**, behind the icons and any widgets, on every monitor. Right-click
+the tray icon and tick **Live wallpaper** (or tick it under **Settings... > Startup**). Untick it to get your normal
+wallpaper back. With "Run in the tray when Windows starts" on, it comes back after every login. It's muted, takes no
+mouse or keyboard input, and uses the same weather, day/night and season settings. It **pauses automatically while a
+full-screen app or game is in front** (checked every 2 seconds) and resumes when you leave it. Otherwise it uses some
+GPU/CPU all the time, so turn it off on battery if that matters to you.
+
 ## Command line
 
 | Argument | Behavior |
@@ -104,6 +113,7 @@ Weather data by [Open-Meteo.com](https://open-meteo.com/) under
 | *(none)* or `/t` | Run in the tray and start the screensaver after the idle time |
 | `/s` | Run the screensaver now (all monitors) |
 | `/c` | Settings dialog |
+| `/b` | Run as the live desktop wallpaper (normally started by the tray app) |
 | `/p <hwnd>` | Preview inside the Screen Saver Settings dialog |
 | `/w` | Dev: windowed 1280x720 (Esc closes) |
 | `/x <file.png>` | Dev: windowed, save a screenshot after 4 s (override with env var `POSSUM_SHOT_DELAY`, in ms), then exit |

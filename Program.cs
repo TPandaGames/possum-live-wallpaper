@@ -42,6 +42,9 @@ static class Program
                     Application.Run(new TrayApp(settings));
                     break;
                 }
+            case "/b": // live desktop wallpaper
+                RunWallpaper(settings);
+                break;
             case "/p":
                 if (long.TryParse(arg2, NumberStyles.Integer, CultureInfo.InvariantCulture, out var h))
                     Application.Run(new PreviewForm(new IntPtr(h), settings));
@@ -56,6 +59,34 @@ static class Program
                 Application.Run(new ConfigForm(settings));
                 break;
         }
+    }
+
+    static void RunWallpaper(Settings settings)
+    {
+        using var mutex = new Mutex(true, "PocketPossumScreensaver.Wallpaper", out bool first);
+        if (!first) return;
+
+        // After a fresh login the shell may not be ready yet: retry for up to ~30 s
+        IntPtr desktop = IntPtr.Zero;
+        for (int i = 0; i < 60 && desktop == IntPtr.Zero; i++)
+        {
+            desktop = DesktopHost.Find();
+            if (desktop == IntPtr.Zero) Thread.Sleep(500);
+        }
+        if (desktop == IntPtr.Zero) { Log.Write("wallpaper: desktop window not found"); return; }
+
+        var env = SharedEnv.Create();
+        var ctx = new ApplicationContext();
+        int open = 0;
+        foreach (var screen in Screen.AllScreens)
+        {
+            var f = new WallpaperForm(settings, env, screen, desktop);
+            open++;
+            f.FormClosed += (_, _) => { if (--open == 0) ctx.ExitThread(); };
+            f.Show();
+        }
+        Application.Run(ctx);
+        DesktopHost.RefreshWallpaper();
     }
 
     static void RunScreensaver(Settings settings)
