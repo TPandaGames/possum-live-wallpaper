@@ -41,8 +41,8 @@ sealed class ConfigForm : Form
         theme.Items.AddRange(new object[] { "Porch (moonlit night)", "OLED Void (pure black)", "Synthwave" });
         theme.SelectedIndex = s.Theme switch { "void" => 1, "synth" => 2, _ => 0 };
         var animal = new ComboBox { Left = 90, Top = 60, Width = 270, DropDownStyle = ComboBoxStyle.DropDownList };
-        animal.Items.AddRange(new object[] { "Possum", "Cat", "Raccoon", "Dog", "Lizard" });
-        animal.SelectedIndex = s.Animal switch { "cat" => 1, "raccoon" => 2, "dog" => 3, "lizard" => 4, _ => 0 };
+        animal.Items.AddRange(new object[] { "Possum", "Cat", "Raccoon", "Dog", "Wiener dog", "Lizard" });
+        animal.SelectedIndex = s.Animal switch { "cat" => 1, "raccoon" => 2, "dog" => 3, "dachshund" => 4, "lizard" => 5, _ => 0 };
         var clock = new CheckBox { Text = "Show floating clock && date", Left = 16, Top = 108, AutoSize = true, Checked = s.ShowClock };
         var sound = new CheckBox { Text = "Soft squeak sounds (and thunder)", Left = 16, Top = 138, AutoSize = true, Checked = s.Sound };
         var joey = new CheckBox { Text = "Baby passenger on the lead animal's back", Left = 16, Top = 168, AutoSize = true, Checked = s.Joey };
@@ -216,7 +216,7 @@ sealed class ConfigForm : Form
             }
 
             s.Theme = theme.SelectedIndex switch { 1 => "void", 2 => "synth", _ => "porch" };
-            s.Animal = animal.SelectedIndex switch { 1 => "cat", 2 => "raccoon", 3 => "dog", 4 => "lizard", _ => "possum" };
+            s.Animal = animal.SelectedIndex switch { 1 => "cat", 2 => "raccoon", 3 => "dog", 4 => "dachshund", 5 => "lizard", _ => "possum" };
             s.ShowClock = clock.Checked;
             s.Sound = sound.Checked;
             s.Joey = joey.Checked;

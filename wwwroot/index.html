@@ -1403,6 +1403,14 @@
                 whisk: '#f1f5f9', line: '#0f172a', faceLine: '#0f172a', blush: true,
                 bw: 27, bh: 15, lift: 19, headX: 19, headY: -24, fs: [2, 1],
             },
+            dachshund: {
+                kind: 'dachshund', noun: 'wiener dog', baby: 'puppy', babies: 'puppies', emoji: '🌭',
+                names: ['Frankie', 'Oscar', 'Greta', 'Pretzel', 'Schnitzel', 'Strudel'],
+                body: '#a24f24', belly: '#d9a066', head: '#b15c2c', mark: '#6e3316', tuft: '#6e3316', paw: '#6e3316',
+                nose: '#1e293b', earIn: '#6e3316', earOut: '#6e3316', tailOut: '#0f172a', tailIn: '#a24f24',
+                whisk: '#f1f5f9', line: '#0f172a', faceLine: '#0f172a', blush: true,
+                bw: 35, bh: 11, lift: 13, headX: 30, headY: -19, fs: [2, 1],
+            },
             lizard: {
                 kind: 'lizard', noun: 'lizard', baby: 'hatchling', babies: 'hatchlings', emoji: '🦎',
                 names: ['Iggy', 'Snappy', 'Luna', 'Dash', 'Pebble', 'Zip'],
@@ -1539,7 +1547,7 @@
         // names follow the chosen species
         barnaby.name = SPX.names[0]; bandit.name = SPX.names[1]; mama.name = SPX.names[2];
         babies.forEach((k, i) => { k.name = SPX.names[3 + i]; });
-        if (SPX.kind === 'cat' || SPX.kind === 'dog') { // the possum tints shift hue; for pets just vary the lightness
+        if (SPX.kind === 'cat' || SPX.kind === 'dog' || SPX.kind === 'dachshund') { // the possum tints shift hue; for pets just vary the lightness
             bandit.tint = 'brightness(0.72) saturate(1.1)';
             mama.tint = 'brightness(1.12) saturate(0.85)';
             babies[0].tint = null;
@@ -2197,7 +2205,7 @@
             if (possum.state !== 'HANG' && !possum.onWire) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
                 ctx.beginPath();
-                ctx.ellipse(0, 1, K === 'lizard' ? 36 : 30, 5.5, 0, 0, Math.PI * 2);
+                ctx.ellipse(0, 1, K === 'lizard' ? 36 : K === 'dachshund' ? 40 : 30, 5.5, 0, 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -2216,8 +2224,8 @@
             // --- 1. TAIL ---
             if (possum.state !== 'HANG') {
                 ctx.save();
-                const wag = K === 'dog' ? Math.sin(possum.animFrame * 1.5) * 0.55 : Math.sin(possum.animFrame * 0.6) * 0.22 + possum.tailAngle;
-                ctx.translate(-24, -16 - walkBob);
+                const wag = (K === 'dog' || K === 'dachshund') ? Math.sin(possum.animFrame * 1.5) * 0.55 : Math.sin(possum.animFrame * 0.6) * 0.22 + possum.tailAngle;
+                ctx.translate(K === 'dachshund' ? -34 : -24, (K === 'dachshund' ? -14 : -16) - walkBob); // the long body puts the tail further back
                 ctx.rotate(possum.state === 'PLAY_DEAD' ? 0.2 : wag);
                 ctx.lineCap = 'round';
 
@@ -2242,6 +2250,9 @@
                 } else if (K === 'dog') {
                     ctx.bezierCurveTo(-10, -4, -20, -14, -14, -27);
                     tail(8.5, 5.8, S.body);
+                } else if (K === 'dachshund') { // thin whip of a tail
+                    ctx.bezierCurveTo(-12, -2, -24, -8, -22, -20);
+                    tail(7, 4.4, S.body);
                 } else { // lizard: long and low
                     ctx.bezierCurveTo(-26, 4, -46, -6, -64, 7);
                     tail(9, 6.2, S.body);
@@ -2300,6 +2311,11 @@
                     ctx.fillStyle = S.mark;
                     ctx.beginPath();
                     ctx.ellipse(-9, -4, 8, 5.5, -0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (K === 'dachshund') { // darker saddle along the back
+                    ctx.fillStyle = S.mark;
+                    ctx.beginPath();
+                    ctx.ellipse(-6, -S.bh * 0.55, 20, 3.4, 0, 0, Math.PI * 2);
                     ctx.fill();
                 } else { // lizard: row of dorsal spots
                     ctx.fillStyle = S.mark;
@@ -2413,17 +2429,18 @@
                 ctx.closePath();
                 ctx.fill();
                 whiskers([[16, 4, 29, 1], [16, 6, 29, 8], [15, 2.5, 27, -3]]);
-            } else if (K === 'dog') {
+            } else if (K === 'dog' || K === 'dachshund') {
+                const W = K === 'dachshund'; // wiener dog: narrower head, much longer snout, longer ears
                 ctx.fillStyle = S.head;
                 ctx.beginPath();
-                ctx.ellipse(5, 0, 14, 12, 0, 0, Math.PI * 2);
+                ctx.ellipse(5, 0, W ? 12 : 14, W ? 10.5 : 12, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
                 ctx.fillStyle = S.belly; // snout
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.ellipse(17, 4, 9, 6.5, 0, 0, Math.PI * 2);
+                ctx.ellipse(W ? 20 : 17, W ? 3.5 : 4, W ? 12 : 9, W ? 5.2 : 6.5, W ? 0.06 : 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
@@ -2433,11 +2450,11 @@
                     ctx.strokeStyle = S.line;
                     ctx.lineWidth = 1.4;
                     ctx.beginPath();
-                    ctx.ellipse(19, 11, 2.8, 4.4, 0.1, 0, Math.PI * 2);
+                    ctx.ellipse(W ? 23 : 19, W ? 9.5 : 11, 2.8, 4.4, 0.1, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.stroke();
                 }
-                noseDot(24.5, 2.5, 3);
+                noseDot(W ? 31 : 24.5, W ? 2 : 2.5, W ? 2.8 : 3);
                 ctx.fillStyle = S.mark;
                 ctx.beginPath();
                 ctx.ellipse(5.5, -8, 3.2, 1.8, 0.1, 0, Math.PI * 2);
@@ -2451,7 +2468,7 @@
                 ctx.strokeStyle = S.line;
                 ctx.lineWidth = 2.2;
                 ctx.beginPath();
-                ctx.ellipse(0, 7, 5.8, 10.5, 0, 0, Math.PI * 2);
+                ctx.ellipse(0, W ? 9 : 7, W ? 5.2 : 5.8, W ? 13 : 10.5, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
                 ctx.restore();

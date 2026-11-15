@@ -8,7 +8,7 @@
 ; Override the version with:  iscc installer\PocketPossum.iss /DAppVersion=1.2.3
 
 #ifndef AppVersion
-  #define AppVersion "1.4.0"
+  #define AppVersion "1.5.0"
 #endif
 #define AppName      "Possum Operational ScreenSaver (POSS)"
 #define AppPublisher "TPandaGames"

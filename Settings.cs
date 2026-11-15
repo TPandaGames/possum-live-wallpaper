@@ -6,7 +6,7 @@ namespace PocketPossum;
 public sealed class Settings
 {
     public string Theme { get; set; } = "porch";   // porch | void | synth
-    public string Animal { get; set; } = "possum"; // possum | cat | raccoon | dog | lizard
+    public string Animal { get; set; } = "possum"; // possum | cat | raccoon | dog | dachshund | lizard
     public bool ShowClock { get; set; } = true;
     public bool Sound { get; set; } = false;
     public bool Joey { get; set; } = false;

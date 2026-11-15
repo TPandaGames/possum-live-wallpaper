@@ -26,7 +26,7 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("WebKit2", "4.1")
 from gi.repository import Gdk, GLib, Gtk, WebKit2  # noqa: E402
 
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 APP_URL = "https://github.com/TPandaGames/possum-live-wallpaper"
 
 DEFAULTS = {
@@ -352,7 +352,7 @@ def run_settings(settings):
         return options[max(0, c.get_active())][0]
 
     THEMES = [("porch", "Porch (moonlit night)"), ("void", "OLED Void (pure black)"), ("synth", "Synthwave")]
-    ANIMALS = [("possum", "Possum"), ("cat", "Cat"), ("raccoon", "Raccoon"), ("dog", "Dog"), ("lizard", "Lizard")]
+    ANIMALS = [("possum", "Possum"), ("cat", "Cat"), ("raccoon", "Raccoon"), ("dog", "Dog"), ("dachshund", "Wiener dog"), ("lizard", "Lizard")]
     DN = [("auto", "Automatic (by time)"), ("day", "Always day"), ("night", "Always night")]
     SEASONS = [("auto", "Automatic (by today's date)"), ("spring", "Spring"), ("summer", "Summer"),
                ("autumn", "Autumn"), ("winter", "Winter")]
