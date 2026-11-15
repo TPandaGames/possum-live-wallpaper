@@ -40,15 +40,23 @@ sealed class ConfigForm : Form
         var theme = new ComboBox { Left = 90, Top = 20, Width = 270, DropDownStyle = ComboBoxStyle.DropDownList };
         theme.Items.AddRange(new object[] { "Porch (moonlit night)", "OLED Void (pure black)", "Synthwave" });
         theme.SelectedIndex = s.Theme switch { "void" => 1, "synth" => 2, _ => 0 };
-        var clock = new CheckBox { Text = "Show floating clock && date", Left = 16, Top = 66, AutoSize = true, Checked = s.ShowClock };
-        var sound = new CheckBox { Text = "Soft squeak sounds (and thunder)", Left = 16, Top = 96, AutoSize = true, Checked = s.Sound };
-        var joey = new CheckBox { Text = "Baby joey passenger", Left = 16, Top = 126, AutoSize = true, Checked = s.Joey };
+        var animal = new ComboBox { Left = 90, Top = 60, Width = 270, DropDownStyle = ComboBoxStyle.DropDownList };
+        animal.Items.AddRange(new object[] { "Possum", "Cat", "Raccoon", "Dog", "Lizard" });
+        animal.SelectedIndex = s.Animal switch { "cat" => 1, "raccoon" => 2, "dog" => 3, "lizard" => 4, _ => 0 };
+        var clock = new CheckBox { Text = "Show floating clock && date", Left = 16, Top = 108, AutoSize = true, Checked = s.ShowClock };
+        var sound = new CheckBox { Text = "Soft squeak sounds (and thunder)", Left = 16, Top = 138, AutoSize = true, Checked = s.Sound };
+        var joey = new CheckBox { Text = "Baby passenger on the lead animal's back", Left = 16, Top = 168, AutoSize = true, Checked = s.Joey };
         var sceneNote = new Label
         {
-            Text = "After dark, Bandit and the Maple family wander in. They can't be switched off yet.",
-            Left = 16, Top = 170, Width = 350, Height = 36, ForeColor = SystemColors.GrayText,
+            Text = "After dark, a second animal and a mother with three babies wander in. They can't be switched off yet.",
+            Left = 16, Top = 212, Width = 350, Height = 36, ForeColor = SystemColors.GrayText,
         };
-        tabScene.Controls.AddRange(new Control[] { new Label { Text = "Scene", Left = 16, Top = 24, AutoSize = true }, theme, clock, sound, joey, sceneNote });
+        tabScene.Controls.AddRange(new Control[]
+        {
+            new Label { Text = "Scene", Left = 16, Top = 24, AutoSize = true }, theme,
+            new Label { Text = "Animal", Left = 16, Top = 64, AutoSize = true }, animal,
+            clock, sound, joey, sceneNote,
+        });
 
         // ---------------- Time & season ----------------
         var dn = new GroupBox { Text = "Day / night", Left = 12, Top = 10, Width = 360, Height = 122 };
@@ -208,6 +216,7 @@ sealed class ConfigForm : Form
             }
 
             s.Theme = theme.SelectedIndex switch { 1 => "void", 2 => "synth", _ => "porch" };
+            s.Animal = animal.SelectedIndex switch { 1 => "cat", 2 => "raccoon", 3 => "dog", 4 => "lizard", _ => "possum" };
             s.ShowClock = clock.Checked;
             s.Sound = sound.Checked;
             s.Joey = joey.Checked;

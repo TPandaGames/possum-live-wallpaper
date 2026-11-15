@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. Full notes for each release live in
 [`docs/release-notes/`](docs/release-notes/) and on the [Releases](https://github.com/TPandaGames/possum-operational-screensaver/releases) page.
 
+## [1.3.0] - 2026-11-14
+
+Choose your animal. See the [full release notes](docs/release-notes/v1.3.0.md) or download
+[PocketPossum.scr](https://github.com/TPandaGames/possum-live-wallpaper/releases/download/v1.3.0/PocketPossum.scr).
+
+### Added
+
+- **Animal choice**: possum, cat, raccoon, dog or lizard (Settings > Scene > Animal), each with its own look, names and
+  wording; behaviour and the family dynamic are shared. Page parameter `animal=`
+
 ## [1.2.0] - 2026-11-13
 
 Live desktop wallpaper. See the [full release notes](docs/release-notes/v1.2.0.md) or download
@@ -43,6 +53,7 @@ First release. See the [full release notes](docs/release-notes/v1.0.0.md) or dow
 - Burn-in protection: wandering clock, travelling moon, drifting scene
 - Barnaby, Bandit and the Maple family (Pip, Nibs and Dot), with random chases, standoffs, snack theft and more
 
+[1.3.0]: https://github.com/TPandaGames/possum-live-wallpaper/releases/tag/v1.3.0
 [1.2.0]: https://github.com/TPandaGames/possum-live-wallpaper/releases/tag/v1.2.0
 [1.1.0]: https://github.com/TPandaGames/possum-operational-screensaver/releases/tag/v1.1.0
 [1.0.0]: https://github.com/TPandaGames/possum-operational-screensaver/releases/tag/v1.0.0

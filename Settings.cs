@@ -6,6 +6,7 @@ namespace PocketPossum;
 public sealed class Settings
 {
     public string Theme { get; set; } = "porch";   // porch | void | synth
+    public string Animal { get; set; } = "possum"; // possum | cat | raccoon | dog | lizard
     public bool ShowClock { get; set; } = true;
     public bool Sound { get; set; } = false;
     public bool Joey { get; set; } = false;
@@ -48,7 +49,7 @@ public sealed class Settings
 
     public string ToQuery()
     {
-        var q = $"ss=1&theme={Theme}&clock={(ShowClock ? 1 : 0)}&sound={(Sound ? 1 : 0)}&joey={(Joey ? 1 : 0)}" +
+        var q = $"ss=1&theme={Theme}&animal={Animal}&clock={(ShowClock ? 1 : 0)}&sound={(Sound ? 1 : 0)}&joey={(Joey ? 1 : 0)}" +
                 $"&dn={DayNight}&ds={DayStartHour}&ne={NightStartHour}&season={Season}&hemi={Hemisphere}";
 
         if (WeatherSync && HasWeatherLocation)

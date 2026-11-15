@@ -1368,6 +1368,52 @@
         // ==========================================
         // 5. AUTONOMOUS SCREENSAVER POSSUM AI
         // ==========================================
+        // ---- Animal species: ?animal=possum|cat|raccoon|dog|lizard -------------------------------
+        // Same behaviour for all of them; only the look, names and wording change.
+        const SPECIES = {
+            possum: {
+                kind: 'possum', noun: 'possum', baby: 'joey', babies: 'joeys', emoji: '🦝',
+                names: ['Barnaby', 'Bandit', 'Maple', 'Pip', 'Nibs', 'Dot'],
+                body: '#64748b', belly: '#e2e8f0', head: '#f8fafc', mark: '#64748b', tuft: '#475569', paw: '#fda4af',
+                nose: '#f472b6', earIn: '#f9a8d4', earOut: '#0f172a', tailOut: '#0f172a', tailIn: '#f9a8d4',
+                whisk: '#94a3b8', line: '#0f172a', faceLine: '#0f172a', blush: true,
+                bw: 26, bh: 16, lift: 18, headX: 18, headY: -22, fs: [0, 0],
+            },
+            cat: {
+                kind: 'cat', noun: 'cat', baby: 'kitten', babies: 'kittens', emoji: '🐈',
+                names: ['Biscuit', 'Shadow', 'Ginger', 'Mittens', 'Socks', 'Pickle'],
+                body: '#e8923a', belly: '#fde8c8', head: '#f0a24e', mark: '#b8621b', tuft: '#b8621b', paw: '#fde8c8',
+                nose: '#f48fb1', earIn: '#f9a8b8', earOut: '#e8923a', tailOut: '#0f172a', tailIn: '#e8923a',
+                whisk: '#f1f5f9', line: '#0f172a', faceLine: '#0f172a', blush: true, iris: '#a3e635',
+                bw: 24, bh: 13, lift: 17, headX: 17, headY: -22, fs: [0, 1],
+            },
+            raccoon: {
+                kind: 'raccoon', noun: 'raccoon', baby: 'kit', babies: 'kits', emoji: '🦝',
+                names: ['Rocky', 'Bandit', 'Juniper', 'Pip', 'Nibs', 'Dot'],
+                body: '#7b8494', belly: '#cfd5de', head: '#e7eaef', mark: '#2b3140', tuft: '#586070', paw: '#3b4252',
+                nose: '#1e293b', earIn: '#cbd5e1', earOut: '#4b5563', tailOut: '#0f172a', tailIn: '#8a93a3',
+                whisk: '#cbd5e1', line: '#0f172a', faceLine: '#0f172a', blush: false, ring: true,
+                bw: 26, bh: 16, lift: 18, headX: 18, headY: -21, fs: [0, 0],
+            },
+            dog: {
+                kind: 'dog', noun: 'dog', baby: 'puppy', babies: 'puppies', emoji: '🐕',
+                names: ['Buddy', 'Scamp', 'Daisy', 'Ruff', 'Waffles', 'Pepper'],
+                body: '#c48a4d', belly: '#f3e2c4', head: '#d29b5c', mark: '#8a5a2b', tuft: '#8a5a2b', paw: '#f3e2c4',
+                nose: '#1e293b', earIn: '#8a5a2b', earOut: '#8a5a2b', tailOut: '#0f172a', tailIn: '#c48a4d',
+                whisk: '#f1f5f9', line: '#0f172a', faceLine: '#0f172a', blush: true,
+                bw: 27, bh: 15, lift: 19, headX: 19, headY: -24, fs: [2, 1],
+            },
+            lizard: {
+                kind: 'lizard', noun: 'lizard', baby: 'hatchling', babies: 'hatchlings', emoji: '🦎',
+                names: ['Iggy', 'Snappy', 'Luna', 'Dash', 'Pebble', 'Zip'],
+                body: '#4ea84e', belly: '#d9f0a3', head: '#5cba5c', mark: '#2f7d32', tuft: '#2f7d32', paw: '#3f8f3f',
+                nose: '#2f7d32', earIn: '#2f7d32', earOut: '#2f7d32', tailOut: '#0f172a', tailIn: '#4ea84e',
+                whisk: '#94a3b8', line: '#0f172a', faceLine: '#0f172a', blush: false, iris: '#facc15',
+                bw: 30, bh: 9, lift: 11, headX: 25, headY: -13, fs: [2, -1],
+            },
+        };
+        let SPX = SPECIES[QS.get('animal')] || SPECIES.possum;
+
         let possum = {
             x: width * 0.52,
             y: railY,
@@ -1412,7 +1458,7 @@
             if (possum.hasJoey) {
                 playSqueak();
                 spawnParticles(possum.x, possum.y - 34, '❤️', 4);
-                setActivityBadge('🐭', 'Carrying baby joey on back');
+                setActivityBadge(SPX.emoji, `Carrying a baby ${SPX.baby} on its back`);
             } else {
                 setActivityBadge('🦝', 'Midnight porch patrol...');
             }
@@ -1487,6 +1533,17 @@
             animFrame: i * 2, trail: -1, lastLeaderX: null, chaseT: 0, eatTick: 0, targetSnack: null,
         }));
 
+        // names follow the chosen species
+        barnaby.name = SPX.names[0]; bandit.name = SPX.names[1]; mama.name = SPX.names[2];
+        babies.forEach((k, i) => { k.name = SPX.names[3 + i]; });
+        if (SPX.kind === 'cat' || SPX.kind === 'dog') { // the possum tints shift hue; for pets just vary the lightness
+            bandit.tint = 'brightness(0.72) saturate(1.1)';
+            mama.tint = 'brightness(1.12) saturate(0.85)';
+            babies[0].tint = null;
+            babies[1].tint = 'brightness(0.78)';
+            babies[2].tint = 'brightness(1.15) saturate(0.8)';
+        }
+
         function startLeave(p) {
             p.onWire = false; p.vy = 0;
             p.state = 'LEAVE'; p.stateTimer = 99999;
@@ -1509,10 +1566,10 @@
                 b.enterX = width * (0.25 + Math.random() * 0.5);
                 b.hasJoey = false;
                 chaos.timer = 420;
-                setActivityBadge('🦝', 'A second possum wandered in after dark!');
+                setActivityBadge(SPX.emoji, `A second ${SPX.noun} wandered in after dark!`);
             } else if (b.present && D > 0.6 && b.state !== 'LEAVE') {
                 startLeave(b);
-                setActivityBadge('🌅', 'Bandit slinks off as the sun comes up');
+                setActivityBadge('🌅', `${bandit.name} slinks off as the sun comes up`);
             }
 
             // Maple + joeys
@@ -1532,11 +1589,11 @@
                     k.state = 'WALK'; k.trail = -mama.dir; k.lastLeaderX = null; k.chaseT = 0;
                 });
                 chaos.timer = Math.min(chaos.timer, 600);
-                setActivityBadge('🦝', 'Maple and her three joeys joined the porch party!');
+                setActivityBadge(SPX.emoji, `${mama.name} and three ${SPX.babies} joined the porch party!`);
             } else if (mama.present && D > 0.6 && mama.state !== 'LEAVE') {
                 startLeave(mama);
                 babies.forEach((k) => { k.riding = false; k.state = 'LEAVE'; k.dir = mama.dir; k.chaseT = 0; });
-                setActivityBadge('🌅', 'Maple herds her joeys home for the day');
+                setActivityBadge('🌅', `${mama.name} herds the ${SPX.babies} home for the day`);
             }
         }
 
@@ -1561,7 +1618,7 @@
                 r.riding = true; r.rideTimer = 480 + Math.random() * 360;
                 mama.hasJoey = true;
                 spawnParticles(mama.x, mama.y - 36, '❤️', 2);
-                setActivityBadge('🥰', `${r.name} hopped on Maple's back for a ride`);
+                setActivityBadge('🥰', `${r.name} hopped on ${mama.name}'s back for a ride`);
             }
         }
 
@@ -1702,11 +1759,11 @@
                 barnaby.hasJoey = false; bandit.hasJoey = true;
                 spawnParticles(bandit.x, bandit.y - 36, '💢', 3);
                 playSqueak();
-                setActivityBadge('😱', "Bandit swiped Barnaby's baby joey!");
+                setActivityBadge('😱', `${bandit.name} swiped ${barnaby.name}'s baby ${SPX.baby}!`);
                 later(900, () => {
                     if (bandit.hasJoey) {
                         bandit.hasJoey = false; barnaby.hasJoey = true;
-                        setActivityBadge('🥹', 'Bandit gave the joey back (this time)');
+                        setActivityBadge('🥹', `${bandit.name} gave the ${SPX.baby} back (this time)`);
                     }
                 });
                 return;
@@ -1719,7 +1776,7 @@
                 s.vx = bandit.dir * 3.4; s.vy = -5.2;
                 playSniff();
                 spawnParticles(bandit.x, bandit.y - 36, '✨', 2);
-                setActivityBadge('🤪', 'Bandit is tossing snacks around!');
+                setActivityBadge('🤪', `${bandit.name} is tossing snacks around!`);
                 return;
             }
 
@@ -1729,7 +1786,7 @@
                 kids.forEach((k) => { k.chaseT = 300; });
                 spawnParticles(bandit.x, bandit.y - 36, '💦', 2);
                 playSqueak();
-                setActivityBadge('🐭', 'The joeys are chasing Bandit!');
+                setActivityBadge('🐭', `The ${SPX.babies} are chasing ${bandit.name}!`);
                 return;
             }
 
@@ -1927,7 +1984,7 @@
                                 spawnSnackAt(trashCan.x + 70, railY - 40);
                                 spawnSnackAt(trashCan.x + 30, railY - 60);
                                 spawnParticles(trashCan.x + 30, railY - 40, '💥', 2);
-                                setActivityBadge('🗑️', 'Bandit made an absolute mess of the trash can!', true);
+                                setActivityBadge('🗑️', `${bandit.name} made an absolute mess of the trash can!`, true);
                             }
                         }
                         possum.state = 'IDLE';
@@ -2101,17 +2158,17 @@
         // ==========================================
         // 6. POSSUM VECTOR RENDERER
         // ==========================================
+        // Draws the selected animal (the name is kept for historical reasons: it is still called once per cast member)
         function drawPossum() {
+            const S = SPX, K = S.kind;
             ctx.save();
-            // Bandit is a scruffy brown possum
+            // Cast members are tinted so Bandit, Maple and the little ones look different from the lead animal
             if (possum.tint) ctx.filter = possum.tint;
 
-            // Prehensile Tail Tether when Hanging from Overhead Wire
+            // Dangling from the overhead wire (possums by their prehensile tail, everyone else stretched out by their legs)
             if (possum.state === 'HANG') {
                 const anchorY = getWireYAt(possum.hangX);
                 ctx.save();
-                ctx.strokeStyle = '#0f172a';
-                ctx.lineWidth = 7.5;
                 ctx.lineCap = 'round';
                 ctx.beginPath();
                 ctx.moveTo(possum.hangX, anchorY);
@@ -2121,9 +2178,10 @@
                     possum.x,
                     possum.y - 18
                 );
+                ctx.strokeStyle = S.line;
+                ctx.lineWidth = 7.5;
                 ctx.stroke();
-
-                ctx.strokeStyle = '#f9a8d4';
+                ctx.strokeStyle = S.tailIn;
                 ctx.lineWidth = 4.2;
                 ctx.stroke();
                 ctx.restore();
@@ -2132,11 +2190,11 @@
             ctx.translate(possum.x, possum.y);
             if (possum.scale) ctx.scale(possum.scale, possum.scale);
 
-            // Soft Shadow on Porch Rail
+            // Soft shadow on the porch rail
             if (possum.state !== 'HANG' && !possum.onWire) {
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
                 ctx.beginPath();
-                ctx.ellipse(0, 1, 30, 5.5, 0, 0, Math.PI * 2);
+                ctx.ellipse(0, 1, K === 'lizard' ? 36 : 30, 5.5, 0, 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -2152,80 +2210,106 @@
             const walkBob = possum.state === 'WALK' ? Math.abs(Math.sin(possum.animFrame * 1.8)) * 3.2 : 0;
             const breathe = Math.sin(possum.animFrame * 0.45) * 1.1;
 
-            // --- 1. PREHENSILE PINK TAIL ---
+            // --- 1. TAIL ---
             if (possum.state !== 'HANG') {
                 ctx.save();
-                const tailWave = possum.state === 'PLAY_DEAD'
-                    ? 0.2
-                    : Math.sin(possum.animFrame * 0.6) * 0.22 + possum.tailAngle;
+                const wag = K === 'dog' ? Math.sin(possum.animFrame * 1.5) * 0.55 : Math.sin(possum.animFrame * 0.6) * 0.22 + possum.tailAngle;
                 ctx.translate(-24, -16 - walkBob);
-                ctx.rotate(tailWave);
-
+                ctx.rotate(possum.state === 'PLAY_DEAD' ? 0.2 : wag);
                 ctx.lineCap = 'round';
-                ctx.strokeStyle = '#0f172a';
-                ctx.lineWidth = 7.5;
+
+                const tail = (outW, inW, inCol) => {
+                    ctx.strokeStyle = S.tailOut; ctx.lineWidth = outW; ctx.stroke();
+                    ctx.strokeStyle = inCol; ctx.lineWidth = inW; ctx.stroke();
+                };
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
-                ctx.bezierCurveTo(-22, -4, -36, -24, -22, -34);
-                ctx.stroke();
-
-                ctx.strokeStyle = '#f9a8d4';
-                ctx.lineWidth = 4.5;
-                ctx.stroke();
+                if (K === 'possum') {
+                    ctx.bezierCurveTo(-22, -4, -36, -24, -22, -34);
+                    tail(7.5, 4.5, S.tailIn);
+                } else if (K === 'cat') {
+                    ctx.bezierCurveTo(-14, -6, -28, -26, -13, -42);
+                    tail(8.5, 5.5, S.body);
+                } else if (K === 'raccoon') {
+                    ctx.bezierCurveTo(-22, -2, -38, -12, -33, -32);
+                    tail(15, 12, S.tailIn);
+                    ctx.setLineDash([5, 6]);
+                    ctx.strokeStyle = S.mark; ctx.lineWidth = 12; ctx.stroke();
+                    ctx.setLineDash([]);
+                } else if (K === 'dog') {
+                    ctx.bezierCurveTo(-10, -4, -20, -14, -14, -27);
+                    tail(8.5, 5.8, S.body);
+                } else { // lizard: long and low
+                    ctx.bezierCurveTo(-26, 4, -46, -6, -64, 7);
+                    tail(9, 6.2, S.body);
+                }
                 ctx.restore();
             }
 
-            // --- 2. BACK LEGS & PINK PAWS ---
+            // --- 2. BACK LEGS & PAWS ---
             const legSwing = possum.state === 'WALK' ? Math.sin(possum.animFrame * 1.8) * 5.5 : 0;
-            drawPaw(-14 - legSwing, -2.5, '#fda4af');
-            drawPaw(12 + legSwing, -2.5, '#fda4af');
+            drawPaw(-14 - legSwing, -2.5, S.paw);
+            drawPaw(12 + legSwing, -2.5, S.paw);
 
-            // --- 3. SCRUFFY GREY BODY ---
+            // --- 3. BODY ---
             ctx.save();
-            ctx.translate(0, -18 - walkBob);
+            ctx.translate(0, -S.lift - walkBob);
+            ctx.strokeStyle = S.line;
+            ctx.lineWidth = 2.4;
 
             if (possum.state === 'SLEEP') {
-                ctx.fillStyle = '#64748b';
-                ctx.strokeStyle = '#0f172a';
-                ctx.lineWidth = 2.4;
+                ctx.fillStyle = S.body;
                 ctx.beginPath();
-                ctx.ellipse(0, 4, 27, 17, 0, 0, Math.PI * 2);
+                ctx.ellipse(0, 4, S.bw + 1, S.bh + 1, 0, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
-                ctx.fillStyle = '#cbd5e1';
+                ctx.fillStyle = S.belly;
                 ctx.beginPath();
-                ctx.ellipse(4, 7, 18, 10, 0, 0, Math.PI * 2);
+                ctx.ellipse(4, 7, S.bw - 8, S.bh - 7, 0, 0, Math.PI * 2);
                 ctx.fill();
             } else {
-                ctx.fillStyle = '#64748b';
-                ctx.strokeStyle = '#0f172a';
-                ctx.lineWidth = 2.4;
+                ctx.fillStyle = S.body;
                 ctx.beginPath();
-                ctx.ellipse(-2, 0, 26, 16 + breathe * 0.4, -0.05, 0, Math.PI * 2);
+                ctx.ellipse(-2, 0, S.bw, S.bh + breathe * 0.4, -0.05, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
-                // Silver-white belly highlight
-                ctx.fillStyle = '#e2e8f0';
+                ctx.fillStyle = S.belly;
                 ctx.beginPath();
-                ctx.ellipse(0, 6, 20, 8, 0, 0, Math.PI);
+                ctx.ellipse(0, S.bh * 0.38, S.bw - 6, S.bh * 0.5, 0, 0, Math.PI);
                 ctx.fill();
 
-                // Scruffy fur tufts
-                ctx.strokeStyle = '#475569';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(-14, -14);
-                ctx.lineTo(-10, -18);
-                ctx.lineTo(-5, -14);
-                ctx.lineTo(0, -18);
-                ctx.lineTo(5, -14);
-                ctx.stroke();
+                if (K === 'possum' || K === 'raccoon') {
+                    ctx.strokeStyle = S.tuft;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(-14, -14); ctx.lineTo(-10, -18); ctx.lineTo(-5, -14); ctx.lineTo(0, -18); ctx.lineTo(5, -14);
+                    ctx.stroke();
+                } else if (K === 'cat') {
+                    ctx.strokeStyle = S.mark;
+                    ctx.lineWidth = 2.4;
+                    ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    for (const x of [-14, -7, 0, 7]) { ctx.moveTo(x, -12.5); ctx.lineTo(x + 1.5, -6); }
+                    ctx.stroke();
+                } else if (K === 'dog') {
+                    ctx.fillStyle = S.mark;
+                    ctx.beginPath();
+                    ctx.ellipse(-9, -4, 8, 5.5, -0.2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else { // lizard: row of dorsal spots
+                    ctx.fillStyle = S.mark;
+                    for (const x of [-20, -11, -2, 7, 16]) {
+                        ctx.beginPath();
+                        ctx.ellipse(x, -S.bh * 0.55, 3.2, 2, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
             }
 
             if (possum.hasJoey && possum.state !== 'SLEEP') {
-                drawBabyJoey(-4, -16);
+                drawBabyJoey(-4, -S.bh);
             }
 
             ctx.restore();
@@ -2233,66 +2317,191 @@
             // --- 4. FRONT PAWS ---
             if (possum.state === 'GROOM') {
                 const rub = Math.sin(possum.animFrame * 2.5) * 3;
-                drawPaw(22, -22 + rub, '#fda4af');
+                drawPaw(22, -22 + rub, S.paw);
             } else if (possum.state !== 'SLEEP') {
-                drawPaw(14 - legSwing, -2.5, '#fda4af');
+                drawPaw(14 - legSwing, -2.5, S.paw);
             }
 
-            // --- 5. CONE-SHAPED WHITE HEAD & FACE ---
+            // --- 5. HEAD & FACE ---
             ctx.save();
-            const headY = possum.state === 'SLEEP' ? -12 : -22 - walkBob + possum.sniffOffset * 0.4;
-            const headX = possum.state === 'SLEEP' ? 12 : 18;
+            const headY = possum.state === 'SLEEP' ? -12 : S.headY - walkBob + possum.sniffOffset * 0.4;
+            const headX = possum.state === 'SLEEP' ? S.headX - 6 : S.headX;
             ctx.translate(headX, headY);
 
             if (possum.state === 'SNIFF') {
                 ctx.rotate(-0.12 + Math.sin(possum.animFrame * 2.6) * 0.08);
             }
 
-            drawEar(-6, -12, -0.25);
-
-            ctx.fillStyle = '#f8fafc';
-            ctx.strokeStyle = '#0f172a';
+            ctx.strokeStyle = S.line;
             ctx.lineWidth = 2.4;
-            ctx.beginPath();
-            ctx.moveTo(-12, -11);
-            ctx.quadraticCurveTo(4, -12, 23, 2);
-            ctx.quadraticCurveTo(4, 13, -12, 9);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
+            const noseDot = (x, y, r) => {
+                ctx.fillStyle = S.nose; ctx.strokeStyle = S.line; ctx.lineWidth = 1.8;
+                ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            };
+            const whiskers = (lines) => {
+                ctx.strokeStyle = S.whisk; ctx.lineWidth = 1.2; ctx.beginPath();
+                for (const l of lines) { ctx.moveTo(l[0], l[1]); ctx.lineTo(l[2], l[3]); }
+                ctx.stroke();
+            };
 
-            // Grey forehead V-stripe
-            ctx.fillStyle = '#64748b';
-            ctx.beginPath();
-            ctx.moveTo(-12, -10);
-            ctx.lineTo(1, -3);
-            ctx.lineTo(-11, 2);
-            ctx.closePath();
-            ctx.fill();
+            if (K === 'possum') {
+                drawEar(-6, -12, -0.25);
+                ctx.fillStyle = S.head;
+                ctx.beginPath();
+                ctx.moveTo(-12, -11);
+                ctx.quadraticCurveTo(4, -12, 23, 2);
+                ctx.quadraticCurveTo(4, 13, -12, 9);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
 
-            drawEar(-11, -9, -0.45 + possum.earTwitch * 0.25);
+                ctx.fillStyle = S.mark;
+                ctx.beginPath();
+                ctx.moveTo(-12, -10); ctx.lineTo(1, -3); ctx.lineTo(-11, 2);
+                ctx.closePath();
+                ctx.fill();
 
-            // Pink Boopable Nose
-            ctx.fillStyle = '#f472b6';
-            ctx.strokeStyle = '#0f172a';
-            ctx.lineWidth = 1.8;
-            ctx.beginPath();
-            ctx.arc(23, 2, 3.6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
+                drawEar(-11, -9, -0.45 + possum.earTwitch * 0.25);
+                noseDot(23, 2, 3.6);
+                whiskers([[16, 4, 24, 8], [15, 6, 21, 11]]);
+            } else if (K === 'raccoon') {
+                drawEar(-6, -12, -0.25);
+                ctx.fillStyle = S.head;
+                ctx.beginPath();
+                ctx.moveTo(-12, -11);
+                ctx.quadraticCurveTo(4, -12, 20, 2);
+                ctx.quadraticCurveTo(4, 12, -12, 9);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
 
-            // Whiskers
-            ctx.strokeStyle = '#94a3b8';
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.moveTo(16, 4); ctx.lineTo(24, 8);
-            ctx.moveTo(15, 6); ctx.lineTo(21, 11);
-            ctx.stroke();
+                ctx.fillStyle = S.mark; // the bandit mask
+                ctx.beginPath();
+                ctx.ellipse(4, -1, 10, 6.2, -0.1, 0, Math.PI * 2);
+                ctx.fill();
 
-            // Eyes & Expressions
+                drawEar(-11, -9, -0.45 + possum.earTwitch * 0.25);
+                noseDot(20, 2, 3.4);
+                whiskers([[14, 5, 22, 9], [13, 7, 19, 12]]);
+            } else if (K === 'cat') {
+                drawTriEar(-4, -9, -0.2);
+                ctx.fillStyle = S.head;
+                ctx.beginPath();
+                ctx.ellipse(6, 1, 15, 12, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                drawTriEar(9, -10, 0.25 + possum.earTwitch * 0.3);
+
+                ctx.fillStyle = S.belly;
+                ctx.beginPath();
+                ctx.ellipse(16, 5.5, 6.5, 4.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = S.mark; ctx.lineWidth = 1.9; ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(2, -10.5); ctx.lineTo(2.6, -6);
+                ctx.moveTo(7, -11.5); ctx.lineTo(7, -6.5);
+                ctx.moveTo(12, -10.5); ctx.lineTo(11.4, -6);
+                ctx.stroke();
+
+                ctx.fillStyle = S.nose;
+                ctx.beginPath();
+                ctx.moveTo(18, 1); ctx.lineTo(22.4, 1); ctx.lineTo(20.2, 3.8);
+                ctx.closePath();
+                ctx.fill();
+                whiskers([[16, 4, 29, 1], [16, 6, 29, 8], [15, 2.5, 27, -3]]);
+            } else if (K === 'dog') {
+                ctx.fillStyle = S.head;
+                ctx.beginPath();
+                ctx.ellipse(5, 0, 14, 12, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = S.belly; // snout
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(17, 4, 9, 6.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                const panting = ['IDLE', 'WALK', 'SNIFF', 'CHASE_FIREFLY', 'CHASE_POSSUM', 'FLEE'].includes(possum.state);
+                if (panting && Math.sin(possum.animFrame * 0.9) > -0.4) {
+                    ctx.fillStyle = '#fb7185';
+                    ctx.strokeStyle = S.line;
+                    ctx.lineWidth = 1.4;
+                    ctx.beginPath();
+                    ctx.ellipse(19, 11, 2.8, 4.4, 0.1, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                noseDot(24.5, 2.5, 3);
+                ctx.fillStyle = S.mark;
+                ctx.beginPath();
+                ctx.ellipse(5.5, -8, 3.2, 1.8, 0.1, 0, Math.PI * 2);
+                ctx.fill();
+
+                // floppy ear, in front of the head
+                ctx.save();
+                ctx.translate(-1, -7);
+                ctx.rotate(0.35 + possum.earTwitch * 0.3);
+                ctx.fillStyle = S.earOut;
+                ctx.strokeStyle = S.line;
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.ellipse(0, 7, 5.8, 10.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            } else { // lizard
+                ctx.fillStyle = S.mark; // little crest
+                ctx.lineWidth = 1.8;
+                for (let i = 0; i < 3; i++) {
+                    const x = -6 + i * 6;
+                    ctx.beginPath();
+                    ctx.moveTo(x, -6.5); ctx.lineTo(x + 3, -12); ctx.lineTo(x + 6, -6.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+                ctx.fillStyle = S.head;
+                ctx.lineWidth = 2.4;
+                ctx.beginPath();
+                ctx.ellipse(9, 2, 18, 8.6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.lineWidth = 1.8; // raised eye socket
+                ctx.beginPath();
+                ctx.arc(6, -3, 5.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = S.line;
+                ctx.beginPath();
+                ctx.arc(24.5, -0.5, 1.1, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = S.line; ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                ctx.moveTo(11, 6); ctx.quadraticCurveTo(19, 8.4, 26.5, 5);
+                ctx.stroke();
+
+                if ((possum.state === 'SNIFF' || possum.state === 'EAT') && Math.sin(possum.animFrame * 2.2) > 0) {
+                    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.7; ctx.lineCap = 'round';
+                    ctx.beginPath();
+                    ctx.moveTo(26.5, 5); ctx.lineTo(34, 5);
+                    ctx.moveTo(34, 5); ctx.lineTo(37, 3);
+                    ctx.moveTo(34, 5); ctx.lineTo(37, 7);
+                    ctx.stroke();
+                }
+            }
+
+            // Expressions (shared; shifted so eyes and mouth land on each species' face)
+            ctx.translate(S.fs[0], S.fs[1]);
+
             if (possum.state === 'PLAY_DEAD') {
                 if (possum.peekEye) {
-                    ctx.fillStyle = '#0f172a';
+                    ctx.fillStyle = S.line;
                     ctx.beginPath();
                     ctx.arc(4, -2, 3.6, 0, Math.PI * 2);
                     ctx.fill();
@@ -2301,7 +2510,7 @@
                     ctx.arc(5, -3, 1.3, 0, Math.PI * 2);
                     ctx.fill();
                 } else {
-                    ctx.strokeStyle = '#0f172a';
+                    ctx.strokeStyle = S.faceLine;
                     ctx.lineWidth = 2.2;
                     ctx.beginPath();
                     ctx.moveTo(1, -5); ctx.lineTo(7, 1);
@@ -2309,30 +2518,31 @@
                     ctx.stroke();
                 }
                 ctx.fillStyle = '#fb7185';
-                ctx.strokeStyle = '#0f172a';
+                ctx.strokeStyle = S.line;
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
                 ctx.ellipse(15, 7, 4.5, 2.5, 0.3, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
             } else if (possum.state === 'SLEEP') {
-                ctx.strokeStyle = '#0f172a';
+                ctx.strokeStyle = S.faceLine;
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.arc(4, -2, 3.5, 0.1 * Math.PI, 0.9 * Math.PI);
                 ctx.stroke();
             } else if (possum.state === 'HISS') {
                 // Angry brow, fierce eye, open mouth with teeth
-                ctx.fillStyle = '#0f172a';
+                ctx.fillStyle = S.line;
                 ctx.beginPath();
                 ctx.arc(4, -2, 3.4, 0, TAU);
                 ctx.fill();
-                ctx.strokeStyle = '#0f172a';
+                ctx.strokeStyle = S.faceLine;
                 ctx.lineWidth = 2.2;
                 ctx.beginPath();
                 ctx.moveTo(-1, -8); ctx.lineTo(8, -4);
                 ctx.stroke();
                 ctx.fillStyle = '#fb7185';
+                ctx.strokeStyle = S.line;
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
                 ctx.ellipse(15, 7, 5.5, 3.5, 0.2, 0, TAU);
@@ -2342,7 +2552,7 @@
                 ctx.fillRect(12, 4, 2, 3);
                 ctx.fillRect(17, 5, 2, 3);
             } else if (possum.state === 'EAT') {
-                ctx.strokeStyle = '#0f172a';
+                ctx.strokeStyle = S.faceLine;
                 ctx.lineWidth = 2.2;
                 ctx.beginPath();
                 ctx.moveTo(1, -1); ctx.lineTo(4, -4); ctx.lineTo(7, -1);
@@ -2355,20 +2565,43 @@
                     ctx.fill();
                 }
             } else {
-                ctx.fillStyle = '#0f172a';
-                ctx.beginPath();
-                ctx.arc(4, -2, 3.8, 0, Math.PI * 2);
-                ctx.fill();
+                if (S.ring) { // raccoon: pale ring so the eye shows against the mask
+                    ctx.fillStyle = '#f8fafc';
+                    ctx.beginPath();
+                    ctx.arc(4, -2, 5.3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                if (S.iris) { // cat and lizard: coloured eye with a slit pupil
+                    ctx.fillStyle = S.iris;
+                    ctx.beginPath();
+                    ctx.arc(4, -2, 4.6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = S.line;
+                    ctx.beginPath();
+                    ctx.ellipse(4.4, -2, 1.5, 3.9, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(5.8, -3.6, 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = S.line;
+                    ctx.beginPath();
+                    ctx.arc(4, -2, 3.8, 0, Math.PI * 2);
+                    ctx.fill();
 
-                ctx.fillStyle = '#ffffff';
-                ctx.beginPath();
-                ctx.arc(5.2, -3.2, 1.4, 0, Math.PI * 2);
-                ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(5.2, -3.2, 1.4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
 
-                ctx.fillStyle = 'rgba(244, 114, 182, 0.45)';
-                ctx.beginPath();
-                ctx.ellipse(7, 3.5, 3.2, 2, 0, 0, Math.PI * 2);
-                ctx.fill();
+                if (S.blush) {
+                    ctx.fillStyle = 'rgba(244, 114, 182, 0.45)';
+                    ctx.beginPath();
+                    ctx.ellipse(7, 3.5, 3.2, 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
 
             ctx.restore();
@@ -2379,14 +2612,35 @@
             ctx.save();
             ctx.translate(x, y);
             ctx.rotate(angle);
-            ctx.fillStyle = '#0f172a';
+            ctx.fillStyle = SPX.earOut;
             ctx.beginPath();
             ctx.ellipse(0, -4, 5.5, 7.5, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = '#f9a8d4';
+            ctx.fillStyle = SPX.earIn;
             ctx.beginPath();
             ctx.ellipse(0, -5, 2.8, 4.2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function drawTriEar(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+            ctx.fillStyle = SPX.earOut;
+            ctx.strokeStyle = SPX.line;
+            ctx.lineWidth = 2;
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(-6.5, 0); ctx.lineTo(-1, -14.5); ctx.lineTo(6.5, 0);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = SPX.earIn;
+            ctx.beginPath();
+            ctx.moveTo(-3.6, -1); ctx.lineTo(-0.9, -9.5); ctx.lineTo(3.2, -1);
+            ctx.closePath();
             ctx.fill();
             ctx.restore();
         }
@@ -2395,7 +2649,7 @@
             ctx.save();
             ctx.translate(x, y);
             ctx.fillStyle = color;
-            ctx.strokeStyle = '#0f172a';
+            ctx.strokeStyle = SPX.line;
             ctx.lineWidth = 1.8;
             ctx.beginPath();
             ctx.ellipse(0, 0, 4.5, 3, 0, 0, Math.PI * 2);
@@ -2404,30 +2658,36 @@
             ctx.restore();
         }
 
+        // A baby of the chosen species riding on its parent's back
         function drawBabyJoey(x, y) {
+            const S = SPX;
             ctx.save();
-            ctx.translate(x, y + Math.sin(possum.animFrame * 0.9) * 1);
-            ctx.fillStyle = '#94a3b8';
-            ctx.strokeStyle = '#0f172a';
+            ctx.translate(x, y + Math.sin(possum.animFrame * 0.9) * 1 - 2);
+            ctx.fillStyle = mixHex(S.body, '#ffffff', 0.25);
+            ctx.strokeStyle = S.line;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.ellipse(0, 0, 10, 7, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
 
-            ctx.fillStyle = '#f8fafc';
+            ctx.fillStyle = S.head;
             ctx.beginPath();
             ctx.arc(7, -1, 5.5, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
 
-            ctx.fillStyle = '#0f172a';
+            ctx.fillStyle = S.earOut; // ears
             ctx.beginPath();
             ctx.arc(4, -6, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = S.line; // eye
+            ctx.beginPath();
             ctx.arc(8, -2, 1.5, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = '#f472b6';
+            ctx.fillStyle = S.nose;
             ctx.beginPath();
             ctx.arc(12, -1, 1.8, 0, Math.PI * 2);
             ctx.fill();

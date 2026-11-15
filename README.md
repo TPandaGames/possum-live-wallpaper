@@ -4,7 +4,7 @@ A Windows screensaver starring **Barnaby the possum**, a moonlit porch, and a ca
 (Inside the app and its files it goes by the name *Pocket Possum*.)
 
 **[Download PocketPossum.scr](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum.scr)**
-(v1.2.0) · [Zip, if your browser blocks `.scr` files](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum-win-x64.zip)
+(v1.3.0) · [Zip, if your browser blocks `.scr` files](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum-win-x64.zip)
 · [Release notes](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest)
 It's a real `.scr` file: install it from Windows' Screen Saver Settings, or run it in the tray and let it start by itself
 after a few idle minutes.
@@ -21,8 +21,15 @@ after a few idle minutes.
 |---|---|---|
 | ![Rain](docs/screenshots/rain.png) | ![Thunderstorm at night](docs/screenshots/storm.png) | ![Fog](docs/screenshots/fog.png) |
 
+| Cat | Raccoon | Dog | Lizard |
+|---|---|---|---|
+| ![Cat family](docs/screenshots/animal-cat.png) | ![Raccoon family](docs/screenshots/animal-raccoon.png) | ![Dog family](docs/screenshots/animal-dog.png) | ![Lizard family](docs/screenshots/animal-lizard.png) |
+
 ## Features
 
+- **Choose your animal.** Possum (default), cat, raccoon, dog or lizard, in **Settings > Scene > Animal**. The whole cast
+  changes with it, with its own names (for example Biscuit, Shadow and Ginger with kittens Mittens, Socks and Pickle)
+  and the same behaviour: patrols, naps, chases, standoffs, snack stealing and family outings.
 - **Weather sync (optional).** Pick your city and the scene follows the real weather: cloud cover, rain, snow, fog and
   thunderstorms (with lightning that spooks the possums), plus the temperature under the clock. It also uses your
   location's real sunrise and sunset for day and night. Off by default, see [Weather sync](#weather-sync).
