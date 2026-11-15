@@ -230,5 +230,7 @@ linux/                     Linux version: GTK/WebKit app, .deb build script, man
 
 ## Credits and licenses
 
+Pocket Possum is released under the [MIT License](LICENSE).
+
 Fonts, Tailwind CSS and WebView2 are used under their own licenses; see
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
