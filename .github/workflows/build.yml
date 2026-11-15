@@ -41,3 +41,29 @@ jobs:
         with:
           name: PocketPossum-installer
           path: installer/Output/*.exe
+
+  linux-deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build .deb
+        run: bash linux/build-deb.sh dist
+
+      - name: Check package
+        run: |
+          dpkg-deb -I dist/*.deb
+          dpkg-deb -c dist/*.deb
+
+      - name: Install it on a clean runner and run it
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ./dist/*.deb xvfb
+          pocket-possum --version
+          xvfb-run -a env WEBKIT_DISABLE_COMPOSITING_MODE=1 POSSUM_SOFTWARE=1 pocket-possum --screenshot "$PWD/shot.png" --delay 4000
+          test -s shot.png
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PocketPossum-deb
+          path: dist/*.deb

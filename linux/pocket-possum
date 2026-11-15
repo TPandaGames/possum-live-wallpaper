@@ -1,0 +1,528 @@
+#!/usr/bin/env python3
+"""Possum Operational ScreenSaver (POSS) for Linux.
+
+Runs the same HTML scene as the Windows version in a WebKitGTK window:
+  --screensaver   full-screen on every monitor, exits on any input
+  --wallpaper     live desktop background on every monitor (X11)
+  --window        a normal 1280x720 window
+  --settings      settings dialog
+  --watch         background idle watcher: starts the screensaver after N idle minutes
+  --screenshot F  render, save a PNG to F and exit (for testing)
+"""
+import argparse
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+import urllib.parse
+import urllib.request
+
+import gi
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("WebKit2", "4.1")
+from gi.repository import Gdk, GLib, Gtk, WebKit2  # noqa: E402
+
+VERSION = "1.4.0"
+APP_URL = "https://github.com/TPandaGames/possum-live-wallpaper"
+
+DEFAULTS = {
+    "Theme": "porch", "Animal": "possum", "ShowClock": True, "Sound": False, "Joey": False,
+    "DayNight": "auto", "DayStartHour": 7, "NightStartHour": 19, "Season": "auto", "Hemisphere": "auto",
+    "AutoStart": True, "IdleMinutes": 10, "LiveWallpaper": False,
+    "WeatherSync": False, "WeatherLat": None, "WeatherLon": None, "WeatherPlace": "", "TempUnit": "auto",
+}
+
+
+# ---------------------------------------------------------------- settings
+def config_dir():
+    return os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "PocketPossum")
+
+
+def settings_path():
+    return os.path.join(config_dir(), "settings.json")
+
+
+def log(msg):
+    try:
+        os.makedirs(config_dir(), exist_ok=True)
+        p = os.path.join(config_dir(), "log.txt")
+        if os.path.exists(p) and os.path.getsize(p) > 100_000:
+            os.remove(p)
+        with open(p, "a", encoding="utf-8") as f:
+            f.write(time.strftime("%Y-%m-%dT%H:%M:%S ") + msg + "\n")
+    except OSError:
+        pass
+
+
+def load_settings():
+    s = dict(DEFAULTS)
+    try:
+        with open(settings_path(), encoding="utf-8") as f:
+            s.update({k: v for k, v in json.load(f).items() if k in DEFAULTS})
+    except (OSError, ValueError):
+        pass
+    return s
+
+
+def save_settings(s):
+    os.makedirs(config_dir(), exist_ok=True)
+    with open(settings_path(), "w", encoding="utf-8") as f:
+        json.dump(s, f, indent=2)
+
+
+def to_query(s, ss=True):
+    b = lambda v: "1" if v else "0"
+    q = (f"{'ss=1&' if ss else ''}theme={s['Theme']}&animal={s['Animal']}&clock={b(s['ShowClock'])}&sound={b(s['Sound'])}"
+         f"&joey={b(s['Joey'])}&dn={s['DayNight']}&ds={s['DayStartHour']}&ne={s['NightStartHour']}"
+         f"&season={s['Season']}&hemi={s['Hemisphere']}")
+    if s["WeatherSync"] and s["WeatherLat"] is not None and s["WeatherLon"] is not None:
+        q += (f"&wx=1&lat={s['WeatherLat']!r}&lon={s['WeatherLon']!r}"
+              f"&place={urllib.parse.quote(s['WeatherPlace'] or '', safe='')}&unit={s['TempUnit']}")
+    extra = os.environ.get("POSSUM_URL_EXTRA", "").strip()
+    if extra:
+        q += "&" + extra.lstrip("&")
+    return q
+
+
+def www_dir():
+    here = os.path.dirname(os.path.realpath(__file__))
+    for p in (os.environ.get("POCKET_POSSUM_WWW"),
+              os.path.join(here, "..", "share", "pocket-possum", "www"),
+              os.path.join(here, "..", "wwwroot"),
+              "/usr/share/pocket-possum/www"):
+        if p and os.path.exists(os.path.join(p, "index.html")):
+            return os.path.realpath(p)
+    sys.exit("pocket-possum: cannot find the web assets (index.html)")
+
+
+# ---------------------------------------------------------------- web view
+# Forwards real input from the page to the host (the web view swallows it before GTK sees it)
+INPUT_HOOK = """
+(() => {
+  const t0 = performance.now(); let moved = 0, lx = null, ly = null;
+  const bye = () => window.webkit.messageHandlers.host.postMessage('input');
+  addEventListener('keydown', bye, true); addEventListener('mousedown', bye, true);
+  addEventListener('wheel', bye, true); addEventListener('touchstart', bye, true);
+  addEventListener('mousemove', e => {
+    if (performance.now() - t0 < 1000) return;
+    if (lx !== null) moved += Math.abs(e.screenX - lx) + Math.abs(e.screenY - ly);
+    lx = e.screenX; ly = e.screenY;
+    if (moved > 24) bye();
+  }, true);
+})();
+"""
+ERROR_HOOK = "addEventListener('error', e => window.webkit.messageHandlers.host.postMessage('js-error: ' + e.message + ' @line ' + e.lineno));"
+
+
+def make_view(settings, on_input=None, ss=True, hook_input=False):
+    ucm = WebKit2.UserContentManager()
+    ucm.register_script_message_handler("host")
+
+    def on_message(_m, result):
+        try:
+            text = result.get_js_value().to_string()
+        except Exception:  # noqa: BLE001
+            return
+        if text == "input":
+            if on_input:
+                on_input()
+        elif text.startswith(("js-error", "log:")):
+            log(text)
+
+    ucm.connect("script-message-received::host", on_message)
+
+    def add(src):
+        ucm.add_script(WebKit2.UserScript(src, WebKit2.UserContentInjectedFrames.TOP_FRAME,
+                                          WebKit2.UserScriptInjectionTime.START, None, None))
+    add(ERROR_HOOK)
+    if hook_input:
+        add(INPUT_HOOK)
+
+    view = WebKit2.WebView.new_with_user_content_manager(ucm)
+    cfg = view.get_settings()
+    cfg.set_enable_developer_extras(False)
+    cfg.set_enable_write_console_messages_to_stdout(False)
+    cfg.set_media_playback_requires_user_gesture(False)
+    cfg.set_allow_file_access_from_file_urls(True)
+    cfg.set_allow_universal_access_from_file_urls(True)
+    if os.environ.get("POSSUM_SOFTWARE"):
+        cfg.set_hardware_acceleration_policy(WebKit2.HardwareAccelerationPolicy.NEVER)
+    view.set_background_color(Gdk.RGBA(0, 0, 0, 1))
+    view.connect("context-menu", lambda *a: True)  # no right-click menu
+    uri = "file://" + os.path.join(www_dir(), "index.html") + "?" + to_query(settings, ss)
+    view.load_uri(uri)
+    return view
+
+
+def monitors():
+    d = Gdk.Display.get_default()
+    return [(i, d.get_monitor(i).get_geometry()) for i in range(d.get_n_monitors())]
+
+
+# ---------------------------------------------------------------- modes
+def run_screensaver(settings):
+    wins = []
+    start = time.monotonic()
+    state = {"moved": 0, "last": None}
+
+    def quit_all(*_):
+        if time.monotonic() - start < 1.0:
+            return False
+        for w in wins:
+            w.destroy()
+        Gtk.main_quit()
+        return True
+
+    def on_motion(_w, ev):
+        if time.monotonic() - start < 1.0:
+            return False
+        if state["last"] is not None:
+            state["moved"] += abs(ev.x_root - state["last"][0]) + abs(ev.y_root - state["last"][1])
+        state["last"] = (ev.x_root, ev.y_root)
+        if state["moved"] > 24:
+            quit_all()
+        return False
+
+    for idx, geo in monitors():
+        win = Gtk.Window()
+        win.set_decorated(False)
+        win.set_keep_above(True)
+        win.set_skip_taskbar_hint(True)
+        win.set_title("Pocket Possum")
+        win.override_background_color(Gtk.StateFlags.NORMAL, Gdk.RGBA(0, 0, 0, 1))
+        view = make_view(settings, on_input=quit_all, hook_input=True)
+        view.add_events(Gdk.EventMask.POINTER_MOTION_MASK | Gdk.EventMask.BUTTON_PRESS_MASK
+                        | Gdk.EventMask.KEY_PRESS_MASK | Gdk.EventMask.SCROLL_MASK)
+        view.connect("motion-notify-event", on_motion)
+        view.connect("button-press-event", lambda *a: quit_all())
+        view.connect("key-press-event", lambda *a: quit_all())
+        win.connect("key-press-event", lambda *a: quit_all())
+        win.add(view)
+        win.move(geo.x, geo.y)
+        win.set_default_size(geo.width, geo.height)
+        win.show_all()
+        win.fullscreen_on_monitor(Gdk.Screen.get_default(), idx)
+        blank = Gdk.Cursor.new_from_name(win.get_display(), "none")
+        win.get_window().set_cursor(blank)
+        wins.append(win)
+    Gtk.main()
+
+
+def run_wallpaper(settings):
+    """Live desktop background. Works on X11 (and XWayland); native Wayland desktops don't allow it."""
+    wins = []
+    for _idx, geo in monitors():
+        win = Gtk.Window()
+        win.set_type_hint(Gdk.WindowTypeHint.DESKTOP)
+        win.set_decorated(False)
+        win.set_keep_below(True)
+        win.set_skip_taskbar_hint(True)
+        win.set_skip_pager_hint(True)
+        win.set_accept_focus(False)
+        win.stick()
+        win.set_title("Pocket Possum Wallpaper")
+        view = make_view(settings, hook_input=False)
+        win.add(view)
+        win.move(geo.x, geo.y)
+        win.resize(geo.width, geo.height)
+        win.show_all()
+        wins.append(win)
+    signal.signal(signal.SIGTERM, lambda *_: Gtk.main_quit())
+    Gtk.main()
+
+
+def run_window(settings, shot=None, delay=None):
+    win = Gtk.Window(title="Possum Operational ScreenSaver")
+    win.set_default_size(1280, 720)
+    view = make_view(settings, ss=bool(shot) or True)
+    win.add(view)
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+
+    if shot:
+        ms = int(delay if delay is not None else os.environ.get("POSSUM_SHOT_DELAY", 4000))
+
+        def finish(v, res):
+            try:
+                v.get_snapshot_finish(res).write_to_png(shot)
+                print("saved", shot)
+            except Exception as e:  # noqa: BLE001
+                print("snapshot failed:", e, file=sys.stderr)
+                log("snapshot failed: " + str(e))
+            Gtk.main_quit()
+
+        def take():
+            view.get_snapshot(WebKit2.SnapshotRegion.FULL_DOCUMENT, WebKit2.SnapshotOptions.NONE, None, finish)
+            return False
+        GLib.timeout_add(ms, take)
+    Gtk.main()
+
+
+def idle_ms():
+    try:
+        return int(subprocess.run(["xprintidle"], capture_output=True, text=True, timeout=3).stdout.strip())
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
+def run_watch():
+    """Starts the screensaver after the idle time (and manages the live wallpaper). Needs xprintidle."""
+    me = [sys.executable, os.path.realpath(__file__)]
+    saver = wall = None
+    warned = False
+    log("watch started")
+    while True:
+        s = load_settings()
+        if s["LiveWallpaper"] and (wall is None or wall.poll() is not None):
+            wall = subprocess.Popen(me + ["--wallpaper"])
+        elif not s["LiveWallpaper"] and wall is not None and wall.poll() is None:
+            wall.terminate()
+            wall = None
+        if saver is not None and saver.poll() is not None:
+            saver = None
+        if s["AutoStart"] and saver is None:
+            idle = idle_ms()
+            if idle is None:
+                if not warned:
+                    log("xprintidle unavailable: idle start disabled (install xprintidle; X11 only)")
+                    warned = True
+            elif idle >= max(1, int(s["IdleMinutes"])) * 60_000:
+                saver = subprocess.Popen(me + ["--screensaver"])
+                log(f"watch launched screensaver (idle limit {s['IdleMinutes']} min)")
+        time.sleep(2)
+
+
+# ---------------------------------------------------------------- settings dialog
+def autostart_file():
+    return os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "autostart", "pocket-possum.desktop")
+
+
+def autostart_enabled():
+    return os.path.exists(autostart_file())
+
+
+def set_autostart(on):
+    p = autostart_file()
+    if on:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("[Desktop Entry]\nType=Application\nName=Pocket Possum idle watcher\n"
+                    "Exec=pocket-possum --watch\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n")
+    elif os.path.exists(p):
+        os.remove(p)
+
+
+def run_settings(settings):
+    s = dict(settings)
+    dlg = Gtk.Dialog(title="Possum Operational ScreenSaver Settings", flags=Gtk.DialogFlags.MODAL)
+    dlg.add_button("Cancel", Gtk.ResponseType.CANCEL)
+    dlg.add_button("OK", Gtk.ResponseType.OK)
+    dlg.set_default_size(460, 420)
+    dlg.set_default_response(Gtk.ResponseType.OK)
+    nb = Gtk.Notebook()
+    dlg.get_content_area().pack_start(nb, True, True, 0)
+
+    def page(title):
+        g = Gtk.Grid(row_spacing=10, column_spacing=12, margin=16)
+        nb.append_page(g, Gtk.Label(label=title))
+        return g, [0]
+
+    def row(grid, ctr, label, widget):
+        r = ctr[0]
+        if label:
+            grid.attach(Gtk.Label(label=label, xalign=0), 0, r, 1, 1)
+            grid.attach(widget, 1, r, 1, 1)
+        else:
+            grid.attach(widget, 0, r, 2, 1)
+        widget.set_hexpand(True)
+        ctr[0] += 1
+
+    def combo(options, current):
+        c = Gtk.ComboBoxText()
+        for _v, label in options:
+            c.append_text(label)
+        c.set_active(next((i for i, (v, _l) in enumerate(options) if v == current), 0))
+        return c
+
+    def val(c, options):
+        return options[max(0, c.get_active())][0]
+
+    THEMES = [("porch", "Porch (moonlit night)"), ("void", "OLED Void (pure black)"), ("synth", "Synthwave")]
+    ANIMALS = [("possum", "Possum"), ("cat", "Cat"), ("raccoon", "Raccoon"), ("dog", "Dog"), ("lizard", "Lizard")]
+    DN = [("auto", "Automatic (by time)"), ("day", "Always day"), ("night", "Always night")]
+    SEASONS = [("auto", "Automatic (by today's date)"), ("spring", "Spring"), ("summer", "Summer"),
+               ("autumn", "Autumn"), ("winter", "Winter")]
+    HEMIS = [("auto", "Automatic (from time zone)"), ("north", "Northern"), ("south", "Southern")]
+    UNITS = [("auto", "Automatic (by locale)"), ("c", "Celsius (°C)"), ("f", "Fahrenheit (°F)")]
+
+    # Scene
+    g, c = page("Scene")
+    w_theme = combo(THEMES, s["Theme"]); row(g, c, "Scene", w_theme)
+    w_animal = combo(ANIMALS, s["Animal"]); row(g, c, "Animal", w_animal)
+    w_clock = Gtk.CheckButton(label="Show floating clock & date"); w_clock.set_active(s["ShowClock"]); row(g, c, None, w_clock)
+    w_sound = Gtk.CheckButton(label="Soft squeak sounds (and thunder)"); w_sound.set_active(s["Sound"]); row(g, c, None, w_sound)
+    w_joey = Gtk.CheckButton(label="Baby passenger on the lead animal's back"); w_joey.set_active(s["Joey"]); row(g, c, None, w_joey)
+
+    # Time & season
+    g, c = page("Time & season")
+    w_dn = combo(DN, s["DayNight"]); row(g, c, "Day / night", w_dn)
+    w_ds = Gtk.SpinButton.new_with_range(0, 23, 1); w_ds.set_value(s["DayStartHour"]); row(g, c, "Day starts at (hour)", w_ds)
+    w_ne = Gtk.SpinButton.new_with_range(0, 23, 1); w_ne.set_value(s["NightStartHour"]); row(g, c, "Night starts at (hour)", w_ne)
+    w_season = combo(SEASONS, s["Season"]); row(g, c, "Season", w_season)
+    w_hemi = combo(HEMIS, s["Hemisphere"]); row(g, c, "Hemisphere", w_hemi)
+    note = Gtk.Label(label="With weather sync on, your location's real sunrise, sunset and hemisphere are used instead.",
+                     wrap=True, xalign=0)
+    row(g, c, None, note)
+
+    # Weather
+    g, c = page("Weather")
+    w_sync = Gtk.CheckButton(label="Sync the scene with the real weather"); w_sync.set_active(s["WeatherSync"]); row(g, c, None, w_sync)
+    entry = Gtk.Entry(placeholder_text="City or town, e.g. Dublin")
+    btn = Gtk.Button(label="Search")
+    box = Gtk.Box(spacing=6); box.pack_start(entry, True, True, 0); box.pack_start(btn, False, False, 0)
+    row(g, c, "Location", box)
+    results = Gtk.ComboBoxText(); results.set_no_show_all(True); row(g, c, None, results)
+    status = Gtk.Label(xalign=0, wrap=True)
+    row(g, c, None, status)
+    w_unit = combo(UNITS, s["TempUnit"]); row(g, c, "Temperature", w_unit)
+    priv = Gtk.Label(wrap=True, xalign=0, label=(
+        "When on, the screensaver sends your chosen location's coordinates over HTTPS to open-meteo.com about every "
+        "15 minutes to get the current weather and sunrise/sunset. Nothing else is sent, and it is off by default. "
+        "Weather data by Open-Meteo.com (CC BY 4.0)."))
+    row(g, c, None, priv)
+
+    chosen = {"v": None}
+    places = []
+    if s["WeatherLat"] is not None and s["WeatherLon"] is not None:
+        chosen["v"] = (s["WeatherPlace"], s["WeatherPlace"], s["WeatherLat"], s["WeatherLon"])
+
+    def show_chosen():
+        v = chosen["v"]
+        status.set_text("No location chosen yet." if not v else f"Using: {v[0]}  ({v[2]:.2f}, {v[3]:.2f})")
+    show_chosen()
+
+    def sync_enabled(*_):
+        on = w_sync.get_active()
+        for w in (entry, btn, results, w_unit):
+            w.set_sensitive(on)
+    w_sync.connect("toggled", sync_enabled)
+    sync_enabled()
+
+    def do_search(*_):
+        q = entry.get_text().strip()
+        if len(q) < 2:
+            status.set_text("Type at least two letters.")
+            return
+        status.set_text("Searching...")
+        while Gtk.events_pending():
+            Gtk.main_iteration()
+        try:
+            url = "https://geocoding-api.open-meteo.com/v1/search?name=" + urllib.parse.quote(q) + "&count=8&language=en&format=json"
+            req = urllib.request.Request(url, headers={"User-Agent": f"PocketPossum/{VERSION} (+{APP_URL})"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                data = json.load(r)
+        except Exception as e:  # noqa: BLE001
+            log("geocoding failed: " + str(e))
+            status.set_text("Search failed (are you online?): " + str(e))
+            return
+        places.clear()
+        results.remove_all()
+        for r in data.get("results", []):
+            parts = [r.get("name", ""), r.get("admin1", ""), r.get("country", "")]
+            label = ", ".join(dict.fromkeys(p for p in parts if p))
+            places.append((label, r.get("name", ""), r["latitude"], r["longitude"]))
+            results.append_text(label)
+        if places:
+            results.show()
+            results.set_active(0)
+            status.set_text(f"{len(places)} found. Pick one from the list.")
+        else:
+            results.hide()
+            status.set_text("No matches. Try a nearby larger town.")
+
+    def on_pick(_c):
+        i = results.get_active()
+        if 0 <= i < len(places):
+            chosen["v"] = places[i]
+            show_chosen()
+    results.connect("changed", on_pick)
+    btn.connect("clicked", do_search)
+    entry.connect("activate", do_search)
+
+    # Startup
+    g, c = page("Startup")
+    w_auto = Gtk.CheckButton(label="Start the screensaver when idle"); w_auto.set_active(s["AutoStart"]); row(g, c, None, w_auto)
+    w_min = Gtk.SpinButton.new_with_range(1, 999, 1); w_min.set_value(s["IdleMinutes"]); row(g, c, "Idle minutes", w_min)
+    w_login = Gtk.CheckButton(label="Run the idle watcher when I log in"); w_login.set_active(autostart_enabled()); row(g, c, None, w_login)
+    w_wall = Gtk.CheckButton(label="Use as live desktop wallpaper (while the watcher runs, X11 only)")
+    w_wall.set_active(s["LiveWallpaper"]); row(g, c, None, w_wall)
+    row(g, c, None, Gtk.Label(wrap=True, xalign=0, label=(
+        "The idle watcher (pocket-possum --watch) needs the xprintidle package and an X11 session. "
+        "On Wayland, use your desktop's own idle settings to run: pocket-possum --screensaver")))
+
+    dlg.show_all()
+    results.hide() if not places else None
+    while True:
+        resp = dlg.run()
+        if resp != Gtk.ResponseType.OK:
+            break
+        if w_sync.get_active() and not chosen["v"]:
+            m = Gtk.MessageDialog(transient_for=dlg, message_type=Gtk.MessageType.INFO, buttons=Gtk.ButtonsType.OK,
+                                  text="Choose a location")
+            m.format_secondary_text("Search for your city or town and pick it from the list, or turn weather sync off.")
+            m.run(); m.destroy()
+            nb.set_current_page(2)
+            continue
+        s.update(Theme=val(w_theme, THEMES), Animal=val(w_animal, ANIMALS), ShowClock=w_clock.get_active(),
+                 Sound=w_sound.get_active(), Joey=w_joey.get_active(), DayNight=val(w_dn, DN),
+                 DayStartHour=int(w_ds.get_value()), NightStartHour=int(w_ne.get_value()),
+                 Season=val(w_season, SEASONS), Hemisphere=val(w_hemi, HEMIS), WeatherSync=w_sync.get_active(),
+                 TempUnit=val(w_unit, UNITS), AutoStart=w_auto.get_active(), IdleMinutes=int(w_min.get_value()),
+                 LiveWallpaper=w_wall.get_active())
+        if chosen["v"]:
+            s.update(WeatherPlace=chosen["v"][1], WeatherLat=chosen["v"][2], WeatherLon=chosen["v"][3])
+        try:
+            save_settings(s)
+            set_autostart(w_login.get_active())
+        except OSError as e:
+            log("could not save settings: " + str(e))
+        break
+    dlg.destroy()
+
+
+# ---------------------------------------------------------------- main
+def main():
+    ap = argparse.ArgumentParser(prog="pocket-possum", description="Possum Operational ScreenSaver (POSS)")
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--screensaver", "-s", action="store_true", help="full-screen screensaver on every monitor")
+    g.add_argument("--wallpaper", "-b", action="store_true", help="live desktop background (X11)")
+    g.add_argument("--window", "-w", action="store_true", help="show in a normal window")
+    g.add_argument("--settings", "-c", action="store_true", help="open the settings dialog")
+    g.add_argument("--watch", "-t", action="store_true", help="idle watcher: start the screensaver after the idle time")
+    ap.add_argument("--screenshot", metavar="FILE", help="render, save a PNG and exit (testing)")
+    ap.add_argument("--delay", type=int, metavar="MS", help="wait before the screenshot (default 4000)")
+    ap.add_argument("--version", action="version", version=f"pocket-possum {VERSION}")
+    a = ap.parse_args()
+
+    log("start " + " ".join(sys.argv[1:]))
+    s = load_settings()
+    if a.screenshot:
+        run_window(s, shot=a.screenshot, delay=a.delay)
+    elif a.screensaver:
+        run_screensaver(s)
+    elif a.wallpaper:
+        run_wallpaper(s)
+    elif a.window:
+        run_window(s)
+    elif a.watch:
+        run_watch()
+    else:
+        run_settings(s)
+
+
+if __name__ == "__main__":
+    main()

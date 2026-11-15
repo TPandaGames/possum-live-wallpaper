@@ -1,0 +1,55 @@
+.TH POCKET-POSSUM 1 "2026" "pocket-possum" "User Commands"
+.SH NAME
+pocket-possum \- Possum Operational ScreenSaver: animated screensaver and live wallpaper
+.SH SYNOPSIS
+.B pocket-possum
+[\fIOPTION\fR]
+.SH DESCRIPTION
+Shows an animated moonlit porch scene starring a possum (or a cat, raccoon, dog or lizard) and a chaotic family,
+with day and night, four seasons and optional real weather sync.
+With no option, the settings dialog opens.
+.SH OPTIONS
+.TP
+.BR \-s ", " \-\-screensaver
+Full-screen screensaver on every monitor. Exits on any key press, click, scroll or noticeable mouse movement.
+.TP
+.BR \-b ", " \-\-wallpaper
+Live desktop background on every monitor. Works on X11 (and XWayland); native Wayland desktops do not allow it.
+.TP
+.BR \-w ", " \-\-window
+Show the scene in a normal window.
+.TP
+.BR \-c ", " \-\-settings
+Open the settings dialog.
+.TP
+.BR \-t ", " \-\-watch
+Run the idle watcher: start the screensaver after the configured idle time and manage the live wallpaper.
+Needs \fBxprintidle\fR and an X11 session.
+.TP
+.BI \-\-screenshot " FILE"
+Render the scene, save a PNG to \fIFILE\fR and exit. Useful for testing.
+.TP
+.BI \-\-delay " MS"
+Milliseconds to wait before the screenshot (default 4000).
+.TP
+.B \-\-version
+Print the version.
+.SH FILES
+.TP
+.I ~/.config/PocketPossum/settings.json
+Settings.
+.TP
+.I ~/.config/PocketPossum/log.txt
+Diagnostics, including page script errors and what the animals are up to.
+.SH ENVIRONMENT
+.TP
+.B POSSUM_SOFTWARE
+Set to force software rendering in WebKit.
+.TP
+.B POSSUM_URL_EXTRA
+Extra query parameters appended to the page URL, for example \fBwxtest=95\fR to fake a thunderstorm.
+.SH PRIVACY
+Weather sync is off by default. When enabled, the coordinates of the chosen location are sent over HTTPS to
+open-meteo.com about every 15 minutes (and the city search sends the text you type to its geocoding service).
+.SH HOMEPAGE
+https://github.com/TPandaGames/possum-live-wallpaper

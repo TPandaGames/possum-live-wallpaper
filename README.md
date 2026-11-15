@@ -4,7 +4,7 @@ A Windows screensaver starring **Barnaby the possum**, a moonlit porch, and a ca
 (Inside the app and its files it goes by the name *Pocket Possum*.)
 
 **[Download PocketPossum.scr](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum.scr)**
-(v1.3.0) · [Zip, if your browser blocks `.scr` files](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum-win-x64.zip)
+(v1.4.0) · [Linux .deb](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/pocket-possum_1.4.0_all.deb) · [Zip, if your browser blocks `.scr` files](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest/download/PocketPossum-win-x64.zip)
 · [Release notes](https://github.com/TPandaGames/possum-live-wallpaper/releases/latest)
 It's a real `.scr` file: install it from Windows' Screen Saver Settings, or run it in the tray and let it start by itself
 after a few idle minutes.
@@ -113,7 +113,41 @@ mouse or keyboard input, and uses the same weather, day/night and season setting
 full-screen app or game is in front** (checked every 2 seconds) and resumes when you leave it. Otherwise it uses some
 GPU/CPU all the time, so turn it off on battery if that matters to you.
 
-## Command line
+## Linux
+
+A Linux build runs the same scene in a WebKitGTK window. It is packaged as a `.deb` for Debian, Ubuntu and derivatives.
+
+```bash
+sudo apt install ./pocket-possum_1.4.0_all.deb     # pulls in Python, GTK3 and WebKit2GTK
+pocket-possum --settings                            # or find "Possum Operational ScreenSaver" in your app menu
+```
+
+| Command | What it does |
+|---|---|
+| `pocket-possum --screensaver` | Full-screen on every monitor; any key, click, scroll or mouse movement exits |
+| `pocket-possum --wallpaper` | Live desktop background on every monitor (X11 / XWayland only) |
+| `pocket-possum --watch` | Idle watcher: starts the screensaver after the idle time and manages the wallpaper |
+| `pocket-possum --window` | A normal window |
+| `pocket-possum --settings` | Settings dialog (same options as Windows, in `~/.config/PocketPossum/settings.json`) |
+
+Build the package yourself with `linux/build-deb.sh` (it only needs `dpkg-deb`). Install `xprintidle` for the idle
+watcher. Settings, weather sync, animals, seasons and the possum family work exactly as on Windows.
+
+Things that differ from Windows:
+
+- **No tray icon.** The idle watcher runs in the background; start it with `pocket-possum --watch` or tick
+  *Run the idle watcher when I log in* in Settings.
+- **X11 only for the wallpaper and idle watcher.** Wayland desktops don't allow a window behind the desktop, and idle
+  time isn't available to ordinary apps. On Wayland, point your desktop's idle or lock settings at
+  `pocket-possum --screensaver`.
+- The wallpaper does **not** pause for full-screen apps on Linux yet.
+
+Tested on Debian 13 (trixie) under WSL2 with a virtual X server and the Openbox window manager: install, upgrade and
+removal, `lintian` clean, the screensaver (idle, and exit on mouse, key and click), the wallpaper window type,
+the idle watcher, the settings dialog and live weather. **Not tested:** multiple monitors, real GNOME/KDE/Xfce desktops,
+native Wayland, and other distributions.
+
+## Command line (Windows)
 
 | Argument | Behavior |
 |---|---|
@@ -187,6 +221,7 @@ WebHost.cs                 Serves the embedded site to WebView2
 wwwroot/                   index.html, compiled CSS, bundled fonts
 tools/tailwind/            Rebuilds wwwroot/app.css
 docs/screenshots/          Images used in this README
+linux/                     Linux version: GTK/WebKit app, .deb build script, man page
 ```
 
 ## Credits and licenses

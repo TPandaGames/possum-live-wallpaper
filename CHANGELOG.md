@@ -3,6 +3,16 @@
 All notable changes to this project are documented here. Full notes for each release live in
 [`docs/release-notes/`](docs/release-notes/) and on the [Releases](https://github.com/TPandaGames/possum-operational-screensaver/releases) page.
 
+## [1.4.0] - 2026-11-14
+
+Linux version. See the [full release notes](docs/release-notes/v1.4.0.md) or download
+[pocket-possum_1.4.0_all.deb](https://github.com/TPandaGames/possum-live-wallpaper/releases/download/v1.4.0/pocket-possum_1.4.0_all.deb).
+
+### Added
+
+- **Linux version** (`linux/`): a GTK3 + WebKitGTK app with screensaver, live wallpaper (X11), window and settings
+  modes and an idle watcher, packaged as a `.deb` by `linux/build-deb.sh` and built in CI
+
 ## [1.3.0] - 2026-11-14
 
 Choose your animal. See the [full release notes](docs/release-notes/v1.3.0.md) or download
@@ -53,6 +63,7 @@ First release. See the [full release notes](docs/release-notes/v1.0.0.md) or dow
 - Burn-in protection: wandering clock, travelling moon, drifting scene
 - Barnaby, Bandit and the Maple family (Pip, Nibs and Dot), with random chases, standoffs, snack theft and more
 
+[1.4.0]: https://github.com/TPandaGames/possum-live-wallpaper/releases/tag/v1.4.0
 [1.3.0]: https://github.com/TPandaGames/possum-live-wallpaper/releases/tag/v1.3.0
 [1.2.0]: https://github.com/TPandaGames/possum-live-wallpaper/releases/tag/v1.2.0
 [1.1.0]: https://github.com/TPandaGames/possum-operational-screensaver/releases/tag/v1.1.0

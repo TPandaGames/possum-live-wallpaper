@@ -1,0 +1,27 @@
+[Desktop Entry]
+Type=Application
+Name=Possum Operational ScreenSaver
+GenericName=Screensaver and live wallpaper
+Comment=Animated possum porch scene with day/night, seasons and weather
+Exec=pocket-possum --settings
+Icon=pocket-possum
+Terminal=false
+Categories=Settings;DesktopSettings;
+Keywords=screensaver;wallpaper;possum;cat;dog;raccoon;lizard;
+Actions=Screensaver;Wallpaper;Window;Watch;
+
+[Desktop Action Screensaver]
+Name=Start the screensaver now
+Exec=pocket-possum --screensaver
+
+[Desktop Action Wallpaper]
+Name=Run as live wallpaper (X11)
+Exec=pocket-possum --wallpaper
+
+[Desktop Action Window]
+Name=Show in a window
+Exec=pocket-possum --window
+
+[Desktop Action Watch]
+Name=Start the idle watcher
+Exec=pocket-possum --watch

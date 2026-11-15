@@ -1,0 +1,27 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: pocket-possum
+Upstream-Contact: TPandaGames <351797388+TPandaGames@users.noreply.github.com>
+Source: https://github.com/TPandaGames/possum-live-wallpaper
+
+Files: *
+Copyright: 2026 TPandaGames
+License: All-rights-reserved
+ No open-source licence has been chosen for this project yet. Until one is added to the
+ upstream repository, all rights are reserved by the copyright holder.
+
+Files: usr/share/pocket-possum/www/fonts/fredoka-*
+Copyright: The Fredoka Project Authors
+License: OFL-1.1
+ This Font Software is licensed under the SIL Open Font License, Version 1.1.
+ The full text is available at https://openfontlicense.org/open-font-license-official-text/
+
+Files: usr/share/pocket-possum/www/fonts/jetbrains-mono-*
+Copyright: The JetBrains Mono Project Authors
+License: OFL-1.1
+ This Font Software is licensed under the SIL Open Font License, Version 1.1.
+ The full text is available at https://openfontlicense.org/open-font-license-official-text/
+
+Files: usr/share/pocket-possum/www/app.css
+Copyright: Tailwind Labs, Inc. (generated stylesheet; Tailwind CSS is MIT licensed)
+License: MIT
+ See https://github.com/tailwindlabs/tailwindcss/blob/main/LICENSE

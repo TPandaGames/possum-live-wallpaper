@@ -1439,7 +1439,10 @@
 
         // Mirror badge text to the host's log.txt (no-op in a plain browser)
         function hostLog(msg) {
-            try { if (window.chrome && chrome.webview) chrome.webview.postMessage('log: ' + msg); } catch (e) { /* ignore */ }
+            try {
+                if (window.chrome && chrome.webview) chrome.webview.postMessage('log: ' + msg);           // Windows (WebView2)
+                else if (window.webkit && webkit.messageHandlers && webkit.messageHandlers.host) webkit.messageHandlers.host.postMessage('log: ' + msg); // Linux (WebKitGTK)
+            } catch (e) { /* ignore */ }
         }
 
         function setActivityBadge(icon, text, force) {

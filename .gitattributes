@@ -1,5 +1,13 @@
 * text=auto
 
+# Linux files must keep LF line endings even when checked out on Windows
+linux/pocket-possum text eol=lf
+linux/*.sh text eol=lf
+linux/*.desktop text eol=lf
+linux/*.svg text eol=lf
+linux/*.1 text eol=lf
+linux/copyright text eol=lf
+
 *.png binary
 *.woff2 binary
 *.scr binary
